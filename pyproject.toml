@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arena"
+version = "0.1.0"
+description = "Battlecode-style arena where AI-written Python bots fight"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+arena = "arena.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["arena*"]
+
+[tool.setuptools.package-data]
+"arena.viewer" = ["index.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
