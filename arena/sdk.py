@@ -9,14 +9,15 @@ from .game.types import (
     GameActionError,
     GameConstants,
     Location,
-    OreInfo,
-    RobotInfo,
-    RobotType,
+    OccupationInfo,
+    SquadInfo,
     Team,
-    Terrain,
+    TileInfo,
+    TileKind,
+    occupation_rounds,
 )
 
 __all__ = [
-    "RobotController", "Direction", "Location", "Team", "RobotType", "Terrain",
-    "RobotInfo", "OreInfo", "GameActionError", "GameConstants",
+    "RobotController", "Direction", "Location", "Team", "TileKind", "TileInfo", "SquadInfo",
+    "OccupationInfo", "GameActionError", "GameConstants", "occupation_rounds",
 ]

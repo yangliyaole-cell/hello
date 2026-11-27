@@ -1,4 +1,4 @@
-"""Bot-facing value types.
+"""Bot-facing value types for "Frontier".
 
 All of these are immutable, and their classes are sealed (attributes cannot be
 reassigned), because both teams share them inside one process: a bot must not be
@@ -14,8 +14,8 @@ from operator import itemgetter
 from . import constants as C
 
 __all__ = [
-    "Direction", "Location", "Team", "RobotType", "Terrain",
-    "RobotInfo", "OreInfo", "GameActionError", "GameConstants",
+    "Direction", "Location", "Team", "TileKind", "TileInfo", "SquadInfo", "OccupationInfo",
+    "GameActionError", "GameConstants", "occupation_rounds",
 ]
 
 _SEALED: set = set()
@@ -233,8 +233,8 @@ def _team_from_index(i):
     return _TEAMS[i]
 
 
-class Terrain(_Immutable):
-    """Terrain.EMPTY (passable) or Terrain.WALL (impassable)."""
+class TileKind(_Immutable):
+    """TileKind.BLANK, TileKind.TERRITORY (owned by a team), TileKind.RUINED, TileKind.WALL."""
 
     __slots__ = ("name", "index")
 
@@ -242,156 +242,109 @@ class Terrain(_Immutable):
         _init_slots(self, index=index, name=name)
 
     def __repr__(self):
-        return f"Terrain.{self.name}"
+        return f"TileKind.{self.name}"
 
     def __hash__(self):
         return self.index
 
     def __reduce__(self):
-        return (_terrain_from_index, (self.index,))
+        return (_kind_from_index, (self.index,))
 
 
-_TERRAINS = (Terrain(0, "EMPTY"), Terrain(1, "WALL"))
-type.__setattr__(Terrain, "EMPTY", _TERRAINS[0])
-type.__setattr__(Terrain, "WALL", _TERRAINS[1])
+_KINDS = (TileKind(0, "BLANK"), TileKind(1, "TERRITORY"), TileKind(2, "RUINED"), TileKind(3, "WALL"))
+for _k in _KINDS:
+    type.__setattr__(TileKind, _k.name, _k)
 
 
-def _terrain_from_index(i):
-    return _TERRAINS[i]
-
-
-# --------------------------------------------------------------------------- RobotType
-
-class RobotType(_Immutable):
-    """Robot kinds and their stats: RobotType.HQ, RobotType.MINER, RobotType.SOLDIER."""
-
-    __slots__ = (
-        "name", "index", "cost", "health", "vision_radius_sq", "action_radius_sq", "damage",
-        "move_cooldown", "action_cooldown", "budget",
-    )
-
-    def __init__(self, index: int, name: str, **stats):
-        _init_slots(self, index=index, name=name, **stats)
-
-    def __repr__(self):
-        return f"RobotType.{self.name}"
-
-    def __hash__(self):
-        return self.index
-
-    def __reduce__(self):
-        return (_type_from_index, (self.index,))
-
-    @property
-    def can_move(self) -> bool:
-        return self.move_cooldown > 0
-
-    @property
-    def can_attack(self) -> bool:
-        return self.damage > 0
-
-    @property
-    def can_mine(self) -> bool:
-        return self.name == "MINER"
-
-    @property
-    def can_build(self) -> bool:
-        return self.name == "HQ"
-
-    @staticmethod
-    def all() -> tuple:
-        return _TYPES
-
-    @staticmethod
-    def buildable() -> tuple:
-        """Types the HQ can build."""
-        return _TYPES[1:]
-
-
-_TYPES = tuple(RobotType(i, name, **stats) for i, (name, stats) in enumerate(C.ROBOT_STATS.items()))
-for _t in _TYPES:
-    type.__setattr__(RobotType, _t.name, _t)
-
-
-def _type_from_index(i):
-    return _TYPES[i]
+def _kind_from_index(i):
+    return _KINDS[i]
 
 
 # --------------------------------------------------------------------------- records
 
-class RobotInfo(tuple, metaclass=_Frozen):
-    """What you learn about a sensed robot: (id, team, type, location, health)."""
+def _record(name: str, fields: tuple, doc: str):
+    """An immutable tuple subclass with named read-only fields and a sealed class."""
+    ns = {"__slots__": (), "__doc__": doc}
+    for i, f in enumerate(fields):
+        ns[f] = property(itemgetter(i))
+    n = len(fields)
 
-    __slots__ = ()
-    id = property(itemgetter(0))
-    team = property(itemgetter(1))
-    type = property(itemgetter(2))
-    location = property(itemgetter(3))
-    health = property(itemgetter(4))
-
-    def __new__(cls, id, team, type, location, health):
-        return _tuple_new(cls, (id, team, type, location, health))
-
-    def __repr__(self):
-        return f"RobotInfo(id={self[0]}, team={self[1]!r}, type={self[2]!r}, location={self[3]!r}, health={self[4]})"
-
-    def __copy__(self):
-        return self
-
-    def __deepcopy__(self, memo):
-        return self
-
-    def __reduce__(self):
-        return (RobotInfo, tuple(self))
-
-
-class OreInfo(tuple, metaclass=_Frozen):
-    """A sensed ore deposit: (location, amount)."""
-
-    __slots__ = ()
-    location = property(itemgetter(0))
-    amount = property(itemgetter(1))
-
-    def __new__(cls, location, amount):
-        return _tuple_new(cls, (location, amount))
+    def __new__(cls, *values):
+        if len(values) != n:
+            raise TypeError(f"{name} takes {n} values")
+        return _tuple_new(cls, values)
 
     def __repr__(self):
-        return f"OreInfo(location={self[0]!r}, amount={self[1]})"
+        return f"{name}(" + ", ".join(f"{f}={v!r}" for f, v in zip(fields, self)) + ")"
 
-    def __copy__(self):
-        return self
+    ns.update(
+        __new__=__new__, __repr__=__repr__,
+        __copy__=lambda self: self, __deepcopy__=lambda self, memo: self,
+        __reduce__=lambda self: (cls, tuple(self)),
+    )
+    cls = _Frozen(name, (tuple,), ns)
+    return cls
 
-    def __deepcopy__(self, memo):
-        return self
 
-    def __reduce__(self):
-        return (OreInfo, tuple(self))
+OccupationInfo = _record(
+    "OccupationInfo", ("team", "rounds_done", "rounds_total"),
+    "An occupation in progress on a tile.",
+)
+TileInfo = _record(
+    "TileInfo", ("location", "kind", "owner", "rich", "hq", "garrison", "ruin_rounds", "occupation"),
+    "A sensed tile. owner: Team or None. hq: True on an HQ tile (garrison = its defenders). "
+    "ruin_rounds: rounds until a ruined tile turns blank. occupation: OccupationInfo or None.",
+)
+SquadInfo = _record(
+    "SquadInfo", ("id", "team", "location", "soldiers", "last_move"),
+    "A sensed squad. last_move: the Direction it moved in its team's last turn, or None.",
+)
 
 
 class GameActionError(Exception, metaclass=_Frozen):
-    """Raised when a bot attempts an illegal action (e.g. moving into a wall).
-
-    Every action has a matching ``can_*`` check that returns False instead of raising.
-    """
+    """Raised when a bot attempts an illegal action. Every action has a can_* check."""
 
 
 class GameConstants(metaclass=_Frozen):
     """Read-only game constants."""
 
     MAX_ROUNDS = C.MAX_ROUNDS
-    STARTING_ORE = C.STARTING_ORE
-    PASSIVE_INCOME = C.PASSIVE_INCOME
-    MINE_AMOUNT = C.MINE_AMOUNT
-    COOLDOWN_PER_ROUND = C.COOLDOWN_PER_ROUND
-    COOLDOWN_THRESHOLD = C.COOLDOWN_THRESHOLD
-    MAX_UNITS_PER_TEAM = C.MAX_UNITS_PER_TEAM
-    SHARED_ARRAY_SIZE = C.SHARED_ARRAY_SIZE
-    SHARED_ARRAY_MAX_VALUE = C.SHARED_ARRAY_MAX_VALUE
+    MAP_WIDTH = C.MAP_WIDTH
+    MAP_HEIGHT = C.MAP_HEIGHT
+    STARTING_GOLD = C.STARTING_GOLD
+    SOLDIER_COST = C.SOLDIER_COST
+    TILE_INCOME = C.TILE_INCOME
+    RICH_TILE_INCOME = C.RICH_TILE_INCOME
+    UPKEEP_SOLDIERS_PER_GOLD = C.UPKEEP_SOLDIERS_PER_GOLD
+    HQ_GARRISON = C.HQ_GARRISON
+    HQ_DEFENSE_MULTIPLIER = C.HQ_DEFENSE_MULTIPLIER
+    MAX_SPAWNS_PER_ROUND = C.MAX_SPAWNS_PER_ROUND
+    CLAIM_BASE = C.CLAIM_BASE
+    CLAIM_MAX_ROUNDS = C.CLAIM_MAX_ROUNDS
+    REPAIR_BASE = C.REPAIR_BASE
+    REPAIR_MAX_ROUNDS = C.REPAIR_MAX_ROUNDS
+    MAX_GOLD_PER_SOLDIER = C.MAX_GOLD_PER_SOLDIER
+    RUIN_ROUNDS = C.RUIN_ROUNDS
+    COMBAT_FACTOR = C.COMBAT_FACTOR
+    VISION_RADIUS = C.VISION_RADIUS
+    BOARD_SIZE = C.BOARD_SIZE
+    BOARD_MIN_VALUE = C.BOARD_MIN_VALUE
+    BOARD_MAX_VALUE = C.BOARD_MAX_VALUE
+    MEMO_MAX_ITEMS = C.MEMO_MAX_ITEMS
+    MEMO_MAX_CHARS = C.MEMO_MAX_CHARS
+    SQUAD_BUDGET = C.SQUAD_BUDGET
+    HQ_BUDGET = C.HQ_BUDGET
     INIT_BUDGET = C.INIT_BUDGET
-    MAP_MIN_SIZE = C.MAP_MIN_SIZE
-    MAP_MAX_SIZE = C.MAP_MAX_SIZE
 
 
-for _cls in (Direction, Location, Team, Terrain, RobotType, RobotInfo, OreInfo, GameActionError,
+def occupation_rounds(total_gold: int, ruined: bool = False) -> int:
+    """Rounds an occupation takes for a given total price (blank tile, or ruined tile)."""
+    if type(total_gold) is not int or total_gold < 1:
+        raise ValueError("total_gold must be a positive int")
+    base, cap = (C.REPAIR_BASE, C.REPAIR_MAX_ROUNDS) if ruined else (C.CLAIM_BASE, C.CLAIM_MAX_ROUNDS)
+    return max(1, min(cap, -(-base // total_gold)))
+
+
+for _cls in (Direction, Location, Team, TileKind, OccupationInfo, TileInfo, SquadInfo, GameActionError,
              GameConstants, _Immutable):
     _SEALED.add(_cls)

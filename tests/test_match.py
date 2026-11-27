@@ -17,9 +17,9 @@ def test_examplebot_beats_baselines():
 
 
 def test_matches_are_deterministic():
-    a = run_match("bots/examplebot", "bots/randombot", MatchConfig(seed=7, max_rounds=200))
-    b = run_match("bots/examplebot", "bots/randombot", MatchConfig(seed=7, max_rounds=200))
-    assert json.dumps(a["rounds"]) == json.dumps(b["rounds"])
+    a = run_match("bots/examplebot", "bots/randombot", MatchConfig(seed=7, max_rounds=120))
+    b = run_match("bots/examplebot", "bots/randombot", MatchConfig(seed=7, max_rounds=120))
+    assert json.dumps(a["frames"]) == json.dumps(b["frames"])
     assert a["result"] == b["result"]
 
 
@@ -32,8 +32,8 @@ def test_maps_are_symmetric():
             "mirror_x": lambda x, y: (w - 1 - x, y),
             "mirror_y": lambda x, y: (x, h - 1 - y),
         }[m.symmetry]
-        assert {mirror(*p) for p in m.walls} == m.walls
-        assert {mirror(*p): a for p, a in m.ore.items()} == m.ore
+        assert (w, h) == (50, 50)
+        assert {mirror(*p) for p in m.rich} == m.rich and 14 <= len(m.rich) <= 24
         assert mirror(*m.hq[0]) == tuple(m.hq[1])
         m.validate()
 
@@ -54,7 +54,7 @@ def test_runtime_errors_are_reported(tmp_path):
         from arena.sdk import *
         def turn(rc):
             if rc.get_round() == 3:
-                rc.move(Direction.NORTH)   # HQs cannot move -> GameActionError
+                rc.move(Direction.NORTH)   # the HQ cannot move -> GameActionError
             if rc.get_round() == 4:
                 while True:
                     pass

@@ -112,7 +112,7 @@ def bradley_terry(names: list[str], games: list[tuple[int, int, float]], iters: 
 
 
 def run_tournament(bots: list[str], games_per_pair: int = 2, seed: int = 1, jobs: int = 2,
-                   max_rounds: int | None = None, time_limit: float = 0.1, out_dir: str | None = None,
+                   max_rounds: int | None = None, time_limit: float = 0.2, out_dir: str | None = None,
                    save_replays: bool = True, timeout: float = 600, progress=print) -> dict:
     names = [Path(b).name for b in bots]
     if len(set(names)) != len(names):

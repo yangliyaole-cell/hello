@@ -9,7 +9,7 @@ from .sandbox import validate_source
 
 
 class BotProgram:
-    """One team's compiled bot. Each robot gets its own module instance of it."""
+    """One team's compiled bot. Each squad and HQ gets its own module instance of it."""
 
     def __init__(self, name: str, source: str, filename: str):
         self.name = name

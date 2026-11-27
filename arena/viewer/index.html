@@ -1,4 +1,4 @@
-<title>Ore Rush Replay Viewer</title>
+<title>Frontier Replay Viewer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,12 +123,21 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
 .problems pre { margin: 0; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
 .keys { color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .hpbar > div { transition: none; } }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { all: unset; cursor: pointer; padding: 3px 10px; font-size: 12px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:focus-visible { outline: 2px solid var(--teamA); outline-offset: -2px; }
+.squads { display: flex; flex-direction: column; gap: 4px; }
+.squad-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.squad-row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.legend-map { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend-map i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
 </style>
 
 <div class="app">
   <header class="top">
     <div class="titles">
-      <div class="eyebrow">Arena · Ore Rush · match replay</div>
+      <div class="eyebrow">Arena · Frontier · match replay</div>
       <h1 id="title">No replay loaded</h1>
       <div class="meta" id="meta">Open a replay file to start</div>
     </div>
@@ -147,31 +156,44 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
         </div>
       </div>
 
-      <div class="transport" id="transport">
+      <div class="transport">
         <div class="group">
-          <button class="btn" id="bStart" title="First round (Home)" aria-label="First round"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
-          <button class="btn" id="bBack" title="Previous round (←)" aria-label="Previous round"><svg viewBox="0 0 16 16"><path d="M11 2v12L3 8z"/></svg></button>
+          <button class="btn" id="bStart" title="First turn (Home)" aria-label="First turn"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+          <button class="btn" id="bBack" title="Previous turn (←)" aria-label="Previous turn"><svg viewBox="0 0 16 16"><path d="M11 2v12L3 8z"/></svg></button>
           <button class="btn primary" id="bPlay" title="Play / pause (Space)" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M4 2v12l10-6z"/></svg></button>
-          <button class="btn" id="bFwd" title="Next round (→)" aria-label="Next round"><svg viewBox="0 0 16 16"><path d="M5 2v12l8-6z"/></svg></button>
-          <button class="btn" id="bEnd" title="Last round (End)" aria-label="Last round"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+          <button class="btn" id="bFwd" title="Next turn (→)" aria-label="Next turn"><svg viewBox="0 0 16 16"><path d="M5 2v12l8-6z"/></svg></button>
+          <button class="btn" id="bEnd" title="Last turn (End)" aria-label="Last turn"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
         </div>
-        <input type="range" id="slider" min="0" max="0" value="0" aria-label="Round">
-        <span class="round" id="roundLabel">Round 0 / 0</span>
+        <input type="range" id="slider" min="0" max="0" value="0" aria-label="Turn">
+        <span class="round" id="roundLabel">Round 0</span>
         <select id="speed" aria-label="Playback speed">
-          <option value="2">2 r/s</option><option value="5">5 r/s</option><option value="10" selected>10 r/s</option>
-          <option value="20">20 r/s</option><option value="50">50 r/s</option>
+          <option value="10">10 turns/s</option><option value="25">25 turns/s</option><option value="50" selected>50 turns/s</option>
+          <option value="100">100 turns/s</option><option value="250">250 turns/s</option>
         </select>
         <label class="toggle"><input type="checkbox" id="debug" checked> Indicators</label>
       </div>
 
+      <div class="legend-map">
+        <span><i style="background: color-mix(in srgb, var(--teamA) 40%, var(--board))"></i>Territory A</span>
+        <span><i style="background: color-mix(in srgb, var(--teamB) 40%, var(--board))"></i>Territory B</span>
+        <span><i style="background: var(--ore)"></i>Resource-rich</span>
+        <span><i style="background: repeating-linear-gradient(45deg, var(--muted) 0 2px, var(--chip) 2px 5px)"></i>Ruin</span>
+        <span><i style="border: 2px solid var(--muted); background: var(--board)"></i>Being occupied</span>
+        <span><i style="border-radius: 50%; background: var(--muted)"></i>Squad (size = soldiers)</span>
+      </div>
+
       <div class="timeline">
         <div class="head">
-          <span class="label">Units alive per round</span>
+          <div class="seg" role="group" aria-label="Chart metric">
+            <button type="button" data-metric="terr" aria-pressed="true">Territory</button>
+            <button type="button" data-metric="gold" aria-pressed="false">Gold</button>
+            <button type="button" data-metric="sold" aria-pressed="false">Soldiers</button>
+          </div>
           <span class="legend"><span><i style="background: var(--teamA)"></i><span id="legA">A</span></span><span><i style="background: var(--teamB)"></i><span id="legB">B</span></span></span>
         </div>
-        <canvas id="chart" aria-label="Units alive over time; click to seek"></canvas>
+        <canvas id="chart" aria-label="Chart over time; click to seek"></canvas>
       </div>
-      <div class="keys">Click a robot to inspect it. Keys: Space play/pause, ← → step, Home / End.</div>
+      <div class="keys">Click a tile to inspect it. Keys: Space play/pause, ← → step one turn, Home / End.</div>
     </section>
 
     <aside class="side">
@@ -180,8 +202,8 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
         <div class="team" id="teamB" style="--tc: var(--teamB)"></div>
       </div>
       <div class="panel" id="inspector">
-        <h2>Robot</h2>
-        <p class="hint">Click a robot on the board to see its health, instruction use and debug text.</p>
+        <h2>Tile</h2>
+        <p class="hint">Click a tile on the board to see who owns it, what is being occupied and which squads stand there.</p>
       </div>
       <div class="panel">
         <h2>Match stats</h2>
@@ -203,11 +225,13 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   const board = $("board"), chart = $("chart");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const TOKENS = ["panel", "ink", "muted", "line", "board", "grid", "wall", "ore", "teamA", "teamB", "good", "warn", "bad", "chip"];
-  let C = {};
-  let R = null, frames = [], W = 0, H = 0, wall = null, oreFrames = [], series = [], types = [], names = ["A", "B"];
-  let frame = 0, p = 1, playing = false, speed = 10, selected = null, showDebug = true, cell = 12, dpr = 1, lastT = 0;
+  const KEY_EVERY = 40;
+  let C = {}, MONO = "monospace";
+  let R = null, W = 0, H = 0, frames = [], keys = [], rich = null, hqIdx = [0, 0], names = ["A", "B"];
+  let state = null, stateFrame = -1, frame = 0, playing = false, speed = 50, acc = 0, lastT = 0;
+  let selected = null, showDebug = true, metric = "terr", cell = 10, dpr = 1;
+  let lastInd = new Map();
 
-  let MONO = "monospace";
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
     for (const k of TOKENS) C[k] = cs.getPropertyValue("--" + k).trim();
@@ -215,42 +239,58 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   }
   const teamColor = (t) => (t ? C.teamB : C.teamA);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmt = (n) => (Math.abs(n) >= 10000 ? (n / 1000).toFixed(0) + "k" : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 
-  function byId(f) {
-    if (!f._byId) { f._byId = new Map(); for (const r of f.robots) f._byId.set(r[0], r); }
-    return f._byId;
+  // ------------------------------------------------------------------ replay state
+  function cloneState(s) {
+    return { tiles: s.tiles.slice(), squads: new Map(s.squads), occ: new Map(s.occ) };
+  }
+  function applyFrame(s, f, turn) {
+    for (const [x, y, v] of f.tiles || []) s.tiles[y * W + x] = v;
+    for (const id of f.gone || []) s.squads.delete(id);
+    for (const [id, t, x, y, n] of f.sq || []) s.squads.set(id, [t, x, y, n]);
+    for (const [x, y] of f.occ_end || []) s.occ.delete(y * W + x);
+    for (const [x, y, t, rounds, total] of f.occ || []) s.occ.set(y * W + x, { team: t, rounds, total, start: turn });
+  }
+  function stateAt(fr) {
+    if (state && fr === stateFrame) return state;
+    if (state && fr === stateFrame + 1) { applyFrame(state, frames[fr], fr); stateFrame = fr; return state; }
+    const k = Math.floor(fr / KEY_EVERY);
+    state = cloneState(keys[k]);
+    for (let i = k * KEY_EVERY + 1; i <= fr; i++) applyFrame(state, frames[i], i);
+    stateFrame = fr;
+    return state;
   }
 
-  // ------------------------------------------------------------------ load
   function load(replay) {
-    if (!replay || replay.format !== "arena-replay") throw new Error("This file is not an arena replay.");
-    R = replay; W = R.map.width; H = R.map.height; types = R.types;
+    if (!replay || replay.format !== "arena-replay" || replay.game !== "frontier") throw new Error("This file is not a Frontier replay.");
+    R = replay; W = R.map.width; H = R.map.height;
     names = R.teams.map((t) => t.name);
-    frames = [R.initial || { robots: [], ore: [0, 0] }, ...R.rounds];
-    wall = new Uint8Array(W * H);
-    for (const [x, y] of R.map.walls) wall[y * W + x] = 1;
-    let cur = new Int16Array(W * H);
-    for (const [x, y, a] of R.map.ore) cur[y * W + x] = a;
-    oreFrames = [cur];
+    rich = new Uint8Array(W * H);
+    for (const [x, y] of R.map.rich) rich[y * W + x] = 1;
+    hqIdx = R.map.hq.map(([x, y]) => y * W + x);
+    const init = R.initial;
+    const terr0 = [0, 0];
+    for (const [, , v] of init.tiles) if (v === 1 || v === 2) terr0[v - 1]++;
+    frames = [{ team: -1, gold: init.gold, garrison: init.garrison, terr: terr0, sold: [0, 0], squads: [0, 0], cpu: [0, 0] }, ...R.frames];
+    const s = { tiles: new Int8Array(W * H), squads: new Map(), occ: new Map() };
+    for (const [x, y, v] of init.tiles) s.tiles[y * W + x] = v;
+    for (const [x, y] of R.map.walls) s.tiles[y * W + x] = 4;
+    keys = [cloneState(s)];
+    lastInd = new Map();
     for (let i = 1; i < frames.length; i++) {
-      const ch = frames[i].orech;
-      if (ch) { cur = cur.slice(); for (const [x, y, a] of ch) cur[y * W + x] = a; }
-      oreFrames.push(cur);
-    }
-    series = frames.map((f) => {
-      const s = { units: [0, 0], miners: [0, 0], soldiers: [0, 0], hq: [0, 0] };
-      for (const r of f.robots) {
-        const tn = types[r[2]].name;
-        if (tn === "HQ") s.hq[r[1]] = r[5];
-        else { s.units[r[1]]++; if (tn === "MINER") s.miners[r[1]]++; else s.soldiers[r[1]]++; }
+      applyFrame(s, frames[i], i);
+      for (const [id, text] of frames[i].ind || []) {
+        if (!lastInd.has(id)) lastInd.set(id, []);
+        lastInd.get(id).push([i, text]);
       }
-      return s;
-    });
-    // HQ health is 0 in frames after it was destroyed
+      if (i % KEY_EVERY === 0) keys.push(cloneState(s));
+    }
+    state = null; stateFrame = -1;
     renderStatic();
     $("empty").hidden = true; board.hidden = false;
     $("slider").max = String(frames.length - 1);
-    selected = null; frame = 0; p = 1;
+    selected = null;
     resize();
     seek(0);
     setPlaying(!reduceMotion);
@@ -259,7 +299,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   function renderStatic() {
     const res = R.result, m = R.map;
     $("title").innerHTML = `<span class="tA">${esc(names[0])}</span><span class="vs">vs</span><span class="tB">${esc(names[1])}</span>`;
-    $("meta").textContent = `seed ${R.seed} · ${m.width}×${m.height} ${m.symmetry} map · ${res.rounds} rounds · engine ${R.engine}`;
+    $("meta").textContent = `seed ${R.seed} · ${m.width}×${m.height} ${m.symmetry} map · ${res.rounds} rounds (${res.turns} turns) · engine ${R.engine}`;
     const pill = $("result");
     pill.hidden = false;
     if (res.winner === null || res.winner === undefined) pill.innerHTML = `No winner · ${esc(res.reason)}`;
@@ -268,9 +308,11 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
 
     const st = R.stats;
     const rows = [
-      ["Miners built", (s) => s.built.MINER], ["Soldiers built", (s) => s.built.SOLDIER],
-      ["Units lost", (s) => s.lost.MINER + s.lost.SOLDIER], ["Ore mined", (s) => s.ore_mined],
-      ["Damage dealt", (s) => s.damage_dealt], ["Kills", (s) => s.kills],
+      ["Final territory", (s) => s.final_territory], ["Peak territory", (s) => s.max_territory],
+      ["Final gold", (s) => s.final_gold], ["Soldiers spawned", (s) => s.soldiers_spawned],
+      ["Squads spawned", (s) => s.squads_spawned], ["Tiles claimed", (s) => s.tiles_claimed],
+      ["Ruins repaired", (s) => s.tiles_repaired], ["Enemy tiles razed", (s) => s.tiles_razed],
+      ["Enemy soldiers killed", (s) => s.enemy_soldiers_killed], ["Gold on occupation", (s) => s.gold_on_occupation],
       ["Instructions / turn", (s) => s.avg_instructions_per_turn], ["Over budget", (s) => s.budget_exceeded],
       ["Exceptions", (s) => s.exceptions], ["CPU timeouts", (s) => s.timeouts],
     ];
@@ -283,9 +325,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     (R.load_errors || []).forEach((errsT, t) => errsT.forEach((e) => loadErrs.push({ team: t, message: e })));
     $("problemsTitle").textContent = errs.length || loadErrs.length ? `Problems (${errs.length + loadErrs.length} recorded)` : "Problems";
     list.innerHTML = "";
-    if (!errs.length && !loadErrs.length) {
-      list.innerHTML = `<li class="hint">No exceptions, budget overruns or timeouts. Both bots stayed within the rules.</li>`;
-    }
+    if (!errs.length && !loadErrs.length) list.innerHTML = `<li class="hint">No exceptions, budget overruns or timeouts.</li>`;
     for (const e of loadErrs) {
       const li = document.createElement("li");
       li.innerHTML = `<button type="button"><span class="where"><span class="kind exception">load</span><span class="t${"AB"[e.team]}">${esc(names[e.team])}</span></span><pre>${esc(e.message)}</pre></button>`;
@@ -294,8 +334,14 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     for (const e of errs) {
       const li = document.createElement("li");
       const kind = e.kind.split("-")[1];
-      li.innerHTML = `<button type="button"><span class="where"><span class="kind ${kind}">${esc(e.kind)}</span><span>Round ${e.round}</span><span class="t${"AB"[e.team]}">${esc(names[e.team])}</span><span>${esc(e.type)} #${e.robot}</span></span><pre>${esc(e.message)}</pre></button>`;
-      li.firstChild.addEventListener("click", () => { setPlaying(false); selected = e.robot; seek(Math.min(e.round, frames.length - 1)); });
+      li.innerHTML = `<button type="button"><span class="where"><span class="kind ${kind}">${esc(e.kind)}</span><span>Round ${e.round}</span><span class="t${"AB"[e.team]}">${esc(names[e.team])}</span><span>${esc(e.type)} #${e.agent}</span></span><pre>${esc(e.message)}</pre></button>`;
+      li.firstChild.addEventListener("click", () => {
+        setPlaying(false);
+        seek(Math.min(e.turn, frames.length - 1));
+        const sq = stateAt(frame).squads.get(e.agent);
+        selected = sq ? sq[2] * W + sq[1] : e.type === "HQ" ? hqIdx[e.team] : selected;
+        sync();
+      });
       list.appendChild(li);
     }
   }
@@ -303,159 +349,108 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   // ------------------------------------------------------------------ layout
   function resize() {
     if (!R) return;
-    const wrap = $("boardWrap");
-    const avail = wrap.clientWidth - 26;
-    const maxH = Math.max(260, window.innerHeight - 280);
-    cell = Math.max(6, Math.min(Math.floor(avail / W), Math.floor(maxH / H), 26));
+    const avail = $("boardWrap").clientWidth - 26;
+    const maxH = Math.max(300, window.innerHeight - 300);
+    cell = Math.max(5, Math.min(Math.floor(avail / W), Math.floor(maxH / H), 20));
     dpr = window.devicePixelRatio || 1;
     board.style.width = cell * W + "px"; board.style.height = cell * H + "px";
     board.width = Math.round(cell * W * dpr); board.height = Math.round(cell * H * dpr);
-    const cw = chart.clientWidth;
-    chart.width = Math.round(cw * dpr); chart.height = Math.round(96 * dpr);
+    chart.width = Math.round(chart.clientWidth * dpr); chart.height = Math.round(96 * dpr);
     draw();
   }
 
   // ------------------------------------------------------------------ drawing
-  const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-  const cx = (x) => x * cell + cell / 2;
-  const cy = (y) => (H - 1 - y) * cell + cell / 2;
-
-  function roundRect(g, x, y, w, h, r) {
-    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-  }
-
-  function drawRobot(g, r, x, y, alpha, scale) {
-    const team = r[1], tn = types[r[2]].name, max = types[r[2]].health;
-    const X = cx(x), Y = cy(y), col = teamColor(team);
-    g.globalAlpha = alpha;
-    g.fillStyle = col;
-    const s = cell * scale;
-    if (tn === "HQ") {
-      roundRect(g, X - s * 0.47, Y - s * 0.47, s * 0.94, s * 0.94, s * 0.18); g.fill();
-      g.lineWidth = Math.max(1, cell * 0.08); g.strokeStyle = C.panel; roundRect(g, X - s * 0.3, Y - s * 0.3, s * 0.6, s * 0.6, s * 0.1); g.stroke();
-    } else if (tn === "MINER") {
-      g.beginPath(); g.arc(X, Y, s * 0.34, 0, Math.PI * 2); g.fill();
-    } else {
-      g.beginPath(); g.moveTo(X, Y - s * 0.44); g.lineTo(X + s * 0.4, Y); g.lineTo(X, Y + s * 0.44); g.lineTo(X - s * 0.4, Y); g.closePath(); g.fill();
-    }
-    if (cell >= 13 && tn !== "HQ") {
-      g.fillStyle = C.panel; g.font = `600 ${Math.round(cell * 0.42)}px ${MONO}`;
-      g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(tn[0], X, Y + cell * 0.02);
-    }
-    const hp = r[5];
-    if (hp < max && cell >= 8) {
-      const bw = cell * 0.8, bh = Math.max(2, cell * 0.12), bx = X - bw / 2, by = Y - cell * 0.5 + 1;
-      g.fillStyle = C.chip; g.fillRect(bx, by, bw, bh);
-      const ratio = Math.max(0, hp / max);
-      g.fillStyle = ratio > 0.5 ? C.good : ratio > 0.25 ? C.warn : C.bad;
-      g.fillRect(bx, by, bw * ratio, bh);
-    }
-    g.globalAlpha = 1;
-  }
+  const px = (x) => x * cell, py = (y) => (H - 1 - y) * cell;
+  const cx = (x) => x * cell + cell / 2, cy = (y) => (H - 1 - y) * cell + cell / 2;
 
   function draw() {
     if (!R) return;
+    const s = stateAt(frame), f = frames[frame];
     const g = board.getContext("2d");
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = C.board; g.fillRect(0, 0, W * cell, H * cell);
-    const ore = oreFrames[frame];
-    const inset = Math.max(1, cell * 0.14);
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const i = y * W + x, px = x * cell, py = (H - 1 - y) * cell;
-        if (wall[i]) { g.fillStyle = C.wall; g.fillRect(px, py, cell, cell); }
-        else if (ore[i] > 0) {
-          g.globalAlpha = 0.25 + 0.75 * Math.min(1, ore[i] / 120);
-          g.fillStyle = C.ore; roundRect(g, px + inset, py + inset, cell - 2 * inset, cell - 2 * inset, inset); g.fill();
-          g.globalAlpha = 1;
-        }
-      }
+
+    // tiles
+    for (let i = 0; i < W * H; i++) {
+      const v = s.tiles[i];
+      if (!v) continue;
+      const x = i % W, y = (i / W) | 0;
+      if (v === 1 || v === 2) { g.globalAlpha = 0.38; g.fillStyle = teamColor(v - 1); g.fillRect(px(x), py(y), cell, cell); g.globalAlpha = 1; }
+      else if (v === 3) {
+        g.fillStyle = C.chip; g.fillRect(px(x), py(y), cell, cell);
+        g.strokeStyle = C.muted; g.lineWidth = 1; g.beginPath();
+        g.moveTo(px(x), py(y) + cell); g.lineTo(px(x) + cell, py(y)); g.stroke();
+      } else if (v === 4) { g.fillStyle = C.wall; g.fillRect(px(x), py(y), cell, cell); }
     }
-    if (cell >= 10) {
+    // resource-rich tiles
+    g.fillStyle = C.ore;
+    for (let i = 0; i < W * H; i++) {
+      if (!rich[i]) continue;
+      const X = cx(i % W), Y = cy((i / W) | 0), r = Math.max(1.5, cell * 0.2);
+      g.beginPath(); g.moveTo(X, Y - r); g.lineTo(X + r, Y); g.lineTo(X, Y + r); g.lineTo(X - r, Y); g.closePath(); g.fill();
+    }
+    if (cell >= 9) {
       g.strokeStyle = C.grid; g.lineWidth = 1; g.beginPath();
       for (let x = 1; x < W; x++) { g.moveTo(x * cell + 0.5, 0); g.lineTo(x * cell + 0.5, H * cell); }
       for (let y = 1; y < H; y++) { g.moveTo(0, y * cell + 0.5); g.lineTo(W * cell, y * cell + 0.5); }
       g.stroke();
     }
-
-    const f = frames[frame], prev = frame > 0 ? frames[frame - 1] : null;
-    const cur = byId(f), pm = prev ? byId(prev) : null;
-    const e = p >= 1 ? 1 : ease(p);
-    const posOf = (id) => {
-      const r = cur.get(id), q = pm && pm.get(id);
-      if (r && q && e < 1) return [q[3] + (r[3] - q[3]) * e, q[4] + (r[4] - q[4]) * e];
-      if (r) return [r[3], r[4]];
-      if (q) return [q[3], q[4]];
-      return null;
-    };
-
-    // selection: vision and action radius
-    const sel = selected !== null ? cur.get(selected) : null;
-    if (sel) {
-      const [sx, sy] = posOf(sel[0]);
-      const t = types[sel[2]];
-      g.setLineDash([4, 4]); g.lineWidth = 1.5; g.strokeStyle = C.muted;
-      g.beginPath(); g.arc(cx(sx), cy(sy), Math.sqrt(t.vision_radius_sq) * cell, 0, Math.PI * 2); g.stroke();
-      g.setLineDash([]); g.strokeStyle = teamColor(sel[1]); g.globalAlpha = 0.6;
-      g.beginPath(); g.arc(cx(sx), cy(sy), Math.sqrt(t.action_radius_sq) * cell, 0, Math.PI * 2); g.stroke();
-      g.globalAlpha = 1;
+    // occupations in progress
+    for (const [i, o] of s.occ) {
+      const x = i % W, y = (i / W) | 0;
+      const ticks = Math.min(o.rounds, Math.floor((frame - o.start) / 2) + 1);
+      g.strokeStyle = teamColor(o.team); g.lineWidth = Math.max(1, cell * 0.12);
+      g.strokeRect(px(x) + 1, py(y) + 1, cell - 2, cell - 2);
+      g.fillStyle = teamColor(o.team);
+      g.fillRect(px(x) + 1, py(y) + cell - Math.max(2, cell * 0.18), (cell - 2) * (ticks / o.rounds), Math.max(2, cell * 0.18) - 1);
     }
-
-    // robots destroyed this round fade out
-    if (prev && e < 1) for (const q of prev.robots) if (!cur.has(q[0])) drawRobot(g, q, q[3], q[4], 1 - e, 1);
-    for (const r of f.robots) {
-      const [x, y] = posOf(r[0]);
-      const born = pm && !pm.has(r[0]) && frame > 0;
-      drawRobot(g, r, x, y, 1, born ? 0.4 + 0.6 * e : 1);
+    // HQs
+    for (const t of [0, 1]) {
+      const i = hqIdx[t], x = i % W, y = (i / W) | 0;
+      g.fillStyle = teamColor(t);
+      g.fillRect(px(x) + 1, py(y) + 1, cell - 2, cell - 2);
+      g.strokeStyle = C.panel; g.lineWidth = Math.max(1, cell * 0.12);
+      g.strokeRect(px(x) + cell * 0.28, py(y) + cell * 0.28, cell * 0.44, cell * 0.44);
     }
-
-    // events
-    const flash = 1 - 0.75 * e;
-    for (const ev of f.events || []) {
-      const kind = ev[0];
-      if (kind === "atk") {
-        const src = posOf(ev[1]); if (!src) continue;
-        const q = (pm && pm.get(ev[1])) || cur.get(ev[1]);
-        g.globalAlpha = flash; g.strokeStyle = teamColor(q ? q[1] : 0); g.lineWidth = Math.max(1.5, cell * 0.12);
-        g.beginPath(); g.moveTo(cx(src[0]), cy(src[1])); g.lineTo(cx(ev[2]), cy(ev[3])); g.stroke();
-        g.beginPath(); g.arc(cx(ev[2]), cy(ev[3]), cell * (0.2 + 0.25 * e), 0, Math.PI * 2); g.stroke();
-        g.globalAlpha = 1;
-      } else if (kind === "mine") {
-        g.globalAlpha = flash; g.strokeStyle = C.ore; g.lineWidth = Math.max(1, cell * 0.08);
-        g.beginPath(); g.arc(cx(ev[2]), cy(ev[3]), cell * (0.18 + 0.3 * e), 0, Math.PI * 2); g.stroke();
-        g.globalAlpha = 1;
-      } else if (kind === "die") {
-        const X = cx(ev[2]), Y = cy(ev[3]), k = cell * 0.3;
-        g.globalAlpha = flash; g.strokeStyle = C.bad; g.lineWidth = Math.max(1.5, cell * 0.1);
-        g.beginPath(); g.moveTo(X - k, Y - k); g.lineTo(X + k, Y + k); g.moveTo(X + k, Y - k); g.lineTo(X - k, Y + k); g.stroke();
-        g.globalAlpha = 1;
-      } else if (kind === "err" || kind === "over" || kind === "tle") {
-        const pos = posOf(ev[1]); if (!pos) continue;
-        const X = cx(pos[0]) + cell * 0.32, Y = cy(pos[1]) - cell * 0.32;
-        g.fillStyle = kind === "err" ? C.bad : C.warn;
-        g.beginPath(); g.arc(X, Y, Math.max(2.5, cell * 0.16), 0, Math.PI * 2); g.fill();
-      }
+    // squads (both teams on one tile means a fight: draw them side by side)
+    const byCell = new Map();
+    for (const [id, sq] of s.squads) {
+      const i = sq[2] * W + sq[1];
+      if (!byCell.has(i)) byCell.set(i, []);
+      byCell.get(i).push([id, ...sq]);
     }
-
-    // bots' own debug drawing
+    for (const [i, list] of byCell) {
+      const x = i % W, y = (i / W) | 0;
+      list.forEach(([id, t, , , n]) => {
+        const off = list.length > 1 ? (t ? 0.18 : -0.18) * cell : 0;
+        const r = Math.min(cell * 0.48, cell * (0.2 + 0.09 * Math.log10(n + 1)));
+        g.fillStyle = teamColor(t); g.strokeStyle = C.panel; g.lineWidth = Math.max(1, cell * 0.08);
+        g.beginPath(); g.arc(cx(x) + off, cy(y), Math.max(2, r), 0, Math.PI * 2); g.fill(); g.stroke();
+        if (cell >= 15 && list.length === 1) {
+          g.fillStyle = C.panel; g.font = `600 ${Math.round(cell * 0.36)}px ${MONO}`;
+          g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(fmt(n), cx(x), cy(y) + 1);
+        }
+      });
+    }
+    // fights this turn
+    for (const [x, y] of f.fights || []) {
+      g.strokeStyle = C.bad; g.lineWidth = Math.max(1.5, cell * 0.12);
+      g.beginPath(); g.arc(cx(x), cy(y), cell * 0.62, 0, Math.PI * 2); g.stroke();
+    }
+    // bots' debug drawing
     if (showDebug) {
-      g.lineWidth = Math.max(1, cell * 0.07);
-      for (const ln of f.lines || []) {
-        g.globalAlpha = 0.45; g.strokeStyle = ln[5];
-        g.beginPath(); g.moveTo(cx(ln[1]), cy(ln[2])); g.lineTo(cx(ln[3]), cy(ln[4])); g.stroke();
-      }
-      for (const d of f.dots || []) {
-        g.globalAlpha = 0.9; g.fillStyle = d[3];
-        g.beginPath(); g.arc(cx(d[1]), cy(d[2]), Math.max(2, cell * 0.14), 0, Math.PI * 2); g.fill();
-      }
+      g.lineWidth = Math.max(1, cell * 0.08); g.globalAlpha = 0.5;
+      for (const [, x1, y1, x2, y2, col] of f.lines || []) { g.strokeStyle = col; g.beginPath(); g.moveTo(cx(x1), cy(y1)); g.lineTo(cx(x2), cy(y2)); g.stroke(); }
+      g.globalAlpha = 0.9;
+      for (const [, x, y, col] of f.dots || []) { g.fillStyle = col; g.beginPath(); g.arc(cx(x), cy(y), Math.max(1.5, cell * 0.15), 0, Math.PI * 2); g.fill(); }
       g.globalAlpha = 1;
     }
-
-    if (sel) {
-      const [sx, sy] = posOf(sel[0]);
-      g.strokeStyle = C.ink; g.lineWidth = 2;
-      g.beginPath(); g.arc(cx(sx), cy(sy), cell * 0.6, 0, Math.PI * 2); g.stroke();
+    if (selected !== null) {
+      const x = selected % W, y = (selected / W) | 0;
+      g.setLineDash([3, 3]); g.strokeStyle = C.muted; g.lineWidth = 1;
+      g.strokeRect(px(x - 2), py(y + 2), cell * 5, cell * 5);
+      g.setLineDash([]); g.strokeStyle = C.ink; g.lineWidth = 2;
+      g.strokeRect(px(x), py(y), cell, cell);
     }
     drawChart();
   }
@@ -472,122 +467,111 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     if (!R || w <= 0) return;
-    const padL = 28, padR = 6, padT = 6, padB = 16;
-    const n = series.length;
-    let maxU = 1;
-    for (const s of series) maxU = Math.max(maxU, s.units[0], s.units[1]);
-    const step = niceStep(maxU / 2), top = Math.ceil(maxU / step) * step;
+    const padL = 40, padR = 6, padT = 6, padB = 16, n = frames.length;
+    let lo = 0, hi = 1;
+    for (const f of frames) for (const t of [0, 1]) { hi = Math.max(hi, f[metric][t]); lo = Math.min(lo, f[metric][t]); }
+    const step = niceStep((hi - lo) / 3), top = Math.ceil(hi / step) * step, bot = Math.floor(lo / step) * step;
     const X = (i) => padL + (n > 1 ? (i / (n - 1)) * (w - padL - padR) : 0);
-    const Y = (v) => padT + (1 - v / top) * (h - padT - padB);
-    g.font = `11px ${MONO}`;
-    g.textBaseline = "middle"; g.textAlign = "right";
-    for (let v = 0; v <= top; v += step) {
+    const Y = (v) => padT + (1 - (v - bot) / (top - bot || 1)) * (h - padT - padB);
+    g.font = `11px ${MONO}`; g.textBaseline = "middle"; g.textAlign = "right";
+    for (let v = bot; v <= top; v += step) {
       g.strokeStyle = C.grid; g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(Y(v)) + 0.5); g.lineTo(w - padR, Math.round(Y(v)) + 0.5); g.stroke();
-      g.fillStyle = C.muted; g.fillText(String(v), padL - 6, Y(v));
+      g.fillStyle = C.muted; g.fillText(fmt(v), padL - 6, Y(v));
     }
-    g.textAlign = "left"; g.textBaseline = "alphabetic";
-    g.fillText("round 0", padL, h - 3);
-    g.textAlign = "right"; g.fillText(`round ${n - 1}`, w - padR, h - 3);
+    g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillText("round 0", padL, h - 3);
+    g.textAlign = "right"; g.fillText(`round ${Math.ceil((n - 1) / 2)}`, w - padR, h - 3);
+    const stride = Math.max(1, Math.floor(n / Math.max(1, w - padL - padR)));
     for (const t of [0, 1]) {
-      const col = teamColor(t);
       g.beginPath();
-      series.forEach((s, i) => (i ? g.lineTo(X(i), Y(s.units[t])) : g.moveTo(X(i), Y(s.units[t]))));
-      g.strokeStyle = col; g.lineWidth = 2; g.stroke();
-      g.lineTo(X(n - 1), Y(0)); g.lineTo(X(0), Y(0)); g.closePath();
-      g.globalAlpha = 0.08; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
-      const s = series[frame];
-      g.fillStyle = col; g.beginPath(); g.arc(X(frame), Y(s.units[t]), 3.5, 0, Math.PI * 2); g.fill();
+      for (let i = 0; i < n; i += stride) { const v = frames[i][metric][t]; i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }
+      g.lineTo(X(n - 1), Y(frames[n - 1][metric][t]));
+      g.strokeStyle = teamColor(t); g.lineWidth = 2; g.stroke();
+      g.fillStyle = teamColor(t); g.beginPath(); g.arc(X(frame), Y(frames[frame][metric][t]), 3.5, 0, Math.PI * 2); g.fill();
     }
     g.strokeStyle = C.ink; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.round(X(frame)) + 0.5, padT); g.lineTo(Math.round(X(frame)) + 0.5, h - padB); g.stroke();
   }
 
   // ------------------------------------------------------------------ panels
   function teamCard(t) {
-    const s = series[frame], f = frames[frame];
-    const hqMax = types[0].health, hp = s.hq[t];
+    const f = frames[frame];
     const win = R.result.winner === t && frame === frames.length - 1;
     $(t ? "teamB" : "teamA").innerHTML =
       `<div class="name"><span>${esc(names[t])}</span><span class="side-tag">${win ? '<span class="win-tag">winner</span>' : "team " + "AB"[t]}</span></div>
-       <div class="kv"><span>Ore</span><span>${(f.ore || [0, 0])[t].toLocaleString()}</span>
-       <span>Miners</span><span>${s.miners[t]}</span><span>Soldiers</span><span>${s.soldiers[t]}</span>
-       <span>HQ</span><span>${hp}/${hqMax}</span></div>
-       <div class="hpbar" role="img" aria-label="HQ health ${hp} of ${hqMax}"><div style="width: ${(100 * hp) / hqMax}%"></div></div>`;
+       <div class="kv"><span>Territory</span><span>${f.terr[t].toLocaleString()}</span>
+       <span>Gold</span><span>${f.gold[t].toLocaleString()}</span>
+       <span>Soldiers</span><span>${f.sold[t].toLocaleString()}</span>
+       <span>Squads</span><span>${f.squads[t]}</span>
+       <span>HQ garrison</span><span>${f.garrison[t]}</span></div>`;
+  }
+
+  function indicatorFor(id) {
+    const list = lastInd.get(id);
+    if (!list) return null;
+    let best = null;
+    for (const [i, text] of list) { if (i > frame) break; best = [i, text]; }
+    return best && frame - best[0] <= 2 ? best[1] : null;
   }
 
   function inspector() {
     const el = $("inspector");
     if (selected === null) {
-      el.innerHTML = `<h2>Robot</h2><p class="hint">Click a robot on the board to see its health, instruction use and debug text.</p>`;
+      el.innerHTML = `<h2>Tile</h2><p class="hint">Click a tile on the board to see who owns it, what is being occupied and which squads stand there.</p>`;
       return;
     }
-    const f = frames[frame], r = byId(f).get(selected);
-    if (!r) {
-      el.innerHTML = `<h2>Robot #${selected}</h2><p class="hint">Not on the board in round ${frame}. It was destroyed or not built yet.</p>`;
-      return;
+    const s = stateAt(frame), x = selected % W, y = (selected / W) | 0, v = s.tiles[selected];
+    const owner = v === 1 || v === 2 ? `<span class="t${"AB"[v - 1]}">${esc(names[v - 1])}</span>` : v === 3 ? "ruin" : v === 4 ? "wall" : "blank";
+    const hq = hqIdx.indexOf(selected);
+    const o = s.occ.get(selected);
+    let occ = "";
+    if (o) {
+      const ticks = Math.min(o.rounds, Math.floor((frame - o.start) / 2) + 1);
+      occ = `<span>Occupation</span><span class="t${"AB"[o.team]}">${ticks}/${o.rounds} rounds · ${o.total} gold</span>`;
     }
-    const t = types[r[2]];
-    const ind = (f.ind || []).find((x) => x[0] === r[0]);
-    const used = r[6] || 0, pct = Math.min(100, (100 * used) / t.budget);
-    el.innerHTML = `<h2>Robot #${r[0]}</h2>
-      <div class="kv"><span>Team</span><span class="t${"AB"[r[1]]}">${esc(names[r[1]])}</span>
-      <span>Type</span><span>${t.name}</span><span>Location</span><span>(${r[3]}, ${r[4]})</span>
-      <span>Health</span><span>${r[5]} / ${t.health}</span></div>
-      <div class="budget"><div class="kv"><span>Instructions this round</span><span>${used.toLocaleString()} / ${t.budget.toLocaleString()}</span></div>
-      <div class="bar"><div style="width: ${pct}%"></div></div></div>
-      ${ind ? `<div class="indicator">${esc(ind[1])}</div>` : `<p class="hint">No indicator string this round.</p>`}`;
+    const here = [...s.squads].filter(([, q]) => q[1] === x && q[2] === y);
+    const rows = here.map(([id, q]) => {
+      const ind = indicatorFor(id);
+      return `<div class="squad-row"><span class="t${"AB"[q[0]]}">Squad #${id}</span><span>${q[3].toLocaleString()} soldiers</span></div>` +
+        (ind ? `<div class="indicator">${esc(ind)}</div>` : "");
+    }).join("");
+    const hqInd = hq >= 0 ? indicatorFor(R.initial.hq_ids[hq]) : null;
+    el.innerHTML = `<h2>Tile (${x}, ${y})</h2>
+      <div class="kv"><span>Owner</span><span>${owner}</span>
+      <span>Resource-rich</span><span>${rich[selected] ? "yes (5 gold/round)" : "no"}</span>
+      ${hq >= 0 ? `<span>HQ garrison</span><span>${frames[frame].garrison[hq]}</span>` : ""}${occ}</div>
+      ${hqInd ? `<div class="indicator">HQ: ${esc(hqInd)}</div>` : ""}
+      <div class="squads">${rows || '<p class="hint">No squads on this tile.</p>'}</div>`;
   }
 
   // ------------------------------------------------------------------ playback
-  function seek(fr) {
-    frame = Math.max(0, Math.min(frames.length - 1, fr));
-    p = 1;
-    sync();
+  function panels() {
+    $("slider").value = String(frame);
+    const f = frames[frame];
+    $("roundLabel").textContent = frame === 0 ? "Start" : `Round ${Math.ceil(frame / 2)} · ${"AB"[f.team]} moved`;
+    teamCard(0); teamCard(1); inspector();
   }
-
-  function sync() {
-    panels();
-    draw();
-  }
+  function seek(fr) { frame = Math.max(0, Math.min(frames.length - 1, fr)); sync(); }
+  function sync() { panels(); draw(); }
 
   function setPlaying(on) {
     playing = on && R !== null;
-    if (playing && frame >= frames.length - 1) { frame = 0; p = 1; }
+    if (playing && frame >= frames.length - 1) frame = 0;
     $("playIcon").innerHTML = playing ? '<path d="M3 2h4v12H3zM9 2h4v12H9z"/>' : '<path d="M4 2v12l10-6z"/>';
     $("bPlay").setAttribute("aria-label", playing ? "Pause" : "Play");
-    lastT = performance.now();
-    acc = 0;
+    lastT = performance.now(); acc = 0;
     if (playing) requestAnimationFrame(tick);
   }
-
-  function panels() {
-    $("slider").value = String(frame);
-    $("roundLabel").textContent = `Round ${frame} / ${frames.length - 1}`;
-    teamCard(0); teamCard(1); inspector();
-  }
-
-  function advance() {
-    if (frame >= frames.length - 1) { setPlaying(false); return false; }
-    frame++;
-    panels();
-    return true;
-  }
-
-  let acc = 0;
   function tick(now) {
     if (!playing) return;
-    const dt = Math.min(0.25, (now - lastT) / 1000);
+    acc += Math.min(0.25, (now - lastT) / 1000) * speed;
     lastT = now;
-    if (speed <= 20 && !reduceMotion) {
-      // smooth: tween robots between rounds
-      if (p >= 1) { if (!advance()) return; p = 0; }
-      p = Math.min(1, p + dt * speed);
-    } else {
-      acc += dt * speed;
-      while (acc >= 1) { acc -= 1; if (!advance()) return; }
-      p = 1;
+    let moved = false;
+    while (acc >= 1) {
+      acc -= 1;
+      if (frame >= frames.length - 1) { setPlaying(false); break; }
+      frame++; stateAt(frame); moved = true;
     }
-    draw();
-    requestAnimationFrame(tick);
+    if (moved) sync();
+    if (playing) requestAnimationFrame(tick);
   }
 
   // ------------------------------------------------------------------ input
@@ -599,31 +583,32 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   $("slider").addEventListener("input", (ev) => seek(parseInt(ev.target.value, 10)));
   $("speed").addEventListener("change", (ev) => { speed = parseFloat(ev.target.value); });
   $("debug").addEventListener("change", (ev) => { showDebug = ev.target.checked; draw(); });
+  for (const b of document.querySelectorAll("[data-metric]")) {
+    b.addEventListener("click", () => {
+      metric = b.dataset.metric;
+      for (const o of document.querySelectorAll("[data-metric]")) o.setAttribute("aria-pressed", String(o === b));
+      drawChart();
+    });
+  }
 
   function cellAt(ev) {
     const rect = board.getBoundingClientRect();
     const x = Math.floor((ev.clientX - rect.left) / cell), y = H - 1 - Math.floor((ev.clientY - rect.top) / cell);
-    return x >= 0 && x < W && y >= 0 && y < H ? [x, y] : null;
+    return x >= 0 && x < W && y >= 0 && y < H ? y * W + x : null;
   }
-  board.addEventListener("click", (ev) => {
-    const c = cellAt(ev); if (!c) return;
-    const hit = frames[frame].robots.find((r) => r[3] === c[0] && r[4] === c[1]);
-    selected = hit ? hit[0] : null;
-    inspector(); draw();
-  });
+  board.addEventListener("click", (ev) => { const i = cellAt(ev); selected = i === selected ? null : i; inspector(); draw(); });
   board.addEventListener("mousemove", (ev) => {
-    const c = cellAt(ev), hv = $("hover");
-    if (!c) { hv.hidden = true; return; }
-    const i = c[1] * W + c[0], ore = oreFrames[frame][i];
+    const i = cellAt(ev), hv = $("hover");
+    if (i === null) { hv.hidden = true; return; }
     hv.hidden = false;
-    hv.textContent = `(${c[0]}, ${c[1]})${wall[i] ? " wall" : ore ? " ore " + ore : ""}`;
+    hv.textContent = `(${i % W}, ${(i / W) | 0})${rich[i] ? " rich" : ""}`;
   });
   board.addEventListener("mouseleave", () => { $("hover").hidden = true; });
 
   let dragging = false;
   const chartSeek = (ev) => {
     const rect = chart.getBoundingClientRect();
-    const t = (ev.clientX - rect.left - 28) / Math.max(1, rect.width - 34);
+    const t = (ev.clientX - rect.left - 40) / Math.max(1, rect.width - 46);
     seek(Math.round(Math.max(0, Math.min(1, t)) * (frames.length - 1)));
   };
   chart.addEventListener("pointerdown", (ev) => { if (!R) return; dragging = true; setPlaying(false); chart.setPointerCapture(ev.pointerId); chartSeek(ev); });

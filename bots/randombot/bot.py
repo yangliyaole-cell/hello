@@ -1,4 +1,4 @@
-"""randombot: the weakest possible baseline. Moves, builds and attacks at random."""
+"""randombot: the weakest possible baseline. Spawns, wanders, occupies and razes at random."""
 
 import random
 
@@ -6,30 +6,27 @@ from arena.sdk import *
 
 
 def turn(rc):
-    t = rc.get_type()
-    if t == RobotType.HQ:
-        enemies = rc.sense_nearby_robots(team=rc.get_team().opponent())
-        targets = [e for e in enemies if rc.can_attack(e.location)]
-        if targets:
-            rc.attack(random.choice(targets).location)
-            return
-        kind = random.choice(RobotType.buildable())
-        d = random.choice(Direction.all())
-        if rc.can_build(kind, d):
-            rc.build(kind, d)
+    if rc.is_hq():
+        tiles = rc.get_owned_tiles(connected_only=True)
+        for _ in range(rc.get_spawns_left()):
+            loc = random.choice(tiles)
+            n = random.randint(1, 20)
+            if rc.can_spawn(loc, n):
+                rc.spawn(loc, n)
         return
 
-    if t == RobotType.MINER:
-        for ore in rc.sense_nearby_ore(2):
-            if rc.can_mine(ore.location):
-                rc.mine(ore.location)
-                break
-    elif t == RobotType.SOLDIER:
-        for e in rc.sense_nearby_robots(team=rc.get_team().opponent()):
-            if rc.can_attack(e.location):
-                rc.attack(e.location)
-                break
-
+    here = rc.sense_tile(rc.get_location())
+    if rc.can_raze():
+        rc.raze()
+    if here.occupation is not None and here.occupation.team == rc.get_team():
+        return  # stay until our occupation finishes
+    g = random.randint(1, 3)
+    if random.random() < 0.4 and rc.can_occupy(g):
+        rc.occupy(g)
+        return
     d = random.choice(Direction.all())
-    if rc.can_move(d):
-        rc.move(d)
+    n = rc.get_soldiers()
+    if n > 1 and random.random() < 0.15:
+        n = random.randint(1, n - 1)  # split off part of the squad
+    if rc.can_move(d, n):
+        rc.move(d, n)

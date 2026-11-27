@@ -44,6 +44,11 @@ class BudgetExceeded(BaseException):
     """
 
 
+class StopTurn(BaseException):
+    """Raised by the engine to end a turn early without it counting as an error
+    (e.g. the squad running this turn merged into a bigger squad)."""
+
+
 class Meter:
     def __init__(self) -> None:
         mon = sys.monitoring
@@ -168,6 +173,8 @@ class Meter:
             status = OK
         except BudgetExceeded:
             status = BUDGET
+        except StopTurn:
+            status = OK
         except KeyboardInterrupt:
             raise
         except BaseException as e:  # noqa: BLE001 - anything the bot raised

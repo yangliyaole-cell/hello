@@ -1,9 +1,9 @@
-"""rusher: all-in aggression. The HQ builds nothing but soldiers, and every soldier
-marches straight at the enemy HQ (guessed from map symmetry)."""
+"""rusher: all-in aggression. On its first turn the HQ spends almost all its gold on one
+huge squad, which marches straight at the enemy HQ (guessed from map symmetry)."""
 
 from arena.sdk import *
 
-guess = 0  # per-robot: which symmetry guess this soldier is currently checking
+guess = 0  # per squad: which symmetry guess it is checking
 
 
 def guesses(rc):
@@ -14,34 +14,27 @@ def guesses(rc):
 
 def turn(rc):
     global guess
-    enemies = rc.sense_nearby_robots(team=rc.get_team().opponent())
-    for e in enemies:
-        if rc.can_attack(e.location):
-            rc.attack(e.location)
-            break
-
-    if rc.get_type() == RobotType.HQ:
-        for d in Direction.all():
-            if rc.can_build(RobotType.SOLDIER, d):
-                rc.build(RobotType.SOLDIER, d)
-                break
+    if rc.is_hq():
+        gold = rc.get_available_gold()
+        if gold >= 100:
+            goal = guesses(rc)[0]
+            spot = min(rc.get_owned_tiles(connected_only=True), key=lambda t: t.steps_to(goal))
+            n = (gold - 20) // GameConstants.SOLDIER_COST
+            if rc.can_spawn(spot, n):
+                rc.spawn(spot, n)
         return
 
     me = rc.get_location()
     goal = guesses(rc)[guess]
-    if rc.can_sense_location(goal):
-        info = rc.sense_robot_at(goal)
-        if info is None or info.type != RobotType.HQ:
-            guess = (guess + 1) % 3
-    hq = [e for e in enemies if e.type == RobotType.HQ]
-    if hq:
-        goal = hq[0].location
-    elif enemies:
-        goal = enemies[0].location
-    if not rc.is_movement_ready():
-        return
+    if rc.can_see(goal) and not rc.sense_tile(goal).hq:
+        guess = (guess + 1) % 3
+        goal = guesses(rc)[guess]
+    if any(e.location == me for e in rc.sense_nearby_squads(team=rc.get_team().opponent())):
+        return  # fighting
     d = me.direction_to(goal)
-    for cand in (d, d.rotate_left(), d.rotate_right(), d.rotate_left().rotate_left(), d.rotate_right().rotate_right()):
+    for cand in (d, d.rotate_left(), d.rotate_right()):
         if rc.can_move(cand):
             rc.move(cand)
-            return
+            break
+    if rc.can_raze():
+        rc.raze()

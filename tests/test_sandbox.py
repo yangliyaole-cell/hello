@@ -160,31 +160,28 @@ def test_controller_has_no_reachable_state():
     assert status == ERROR and isinstance(exc, AttributeError)
 
 
-def test_robots_have_private_globals(tmp_path):
-    """Two robots of the same team must not share module globals."""
+def test_squads_have_private_globals(tmp_path):
+    """Squads of the same team must not share module globals."""
     bot = tmp_path / "counter"
     bot.mkdir()
     (bot / "bot.py").write_text(textwrap.dedent("""
         from arena.sdk import *
         count = 0
+        first = None
         def turn(rc):
-            global count
+            global count, first
+            if rc.is_hq():
+                if rc.get_round() < 4:
+                    for loc in rc.get_owned_tiles(connected_only=True)[:3]:
+                        if rc.can_spawn(loc, 1):
+                            rc.spawn(loc, 1)
+                return
             count += 1
-            if rc.get_type() == RobotType.HQ:
-                for d in Direction.all():
-                    if rc.can_build(RobotType.MINER, d):
-                        rc.build(RobotType.MINER, d)
-                        break
-            else:
-                # if globals were shared, count would exceed this robot's age
-                rc.set_indicator_string(str(count))
+            if first is None:
+                first = rc.get_round()
+            if count != rc.get_round() - first + 1:
+                raise RuntimeError("module globals are shared between squads")
     """))
     replay = run_match(str(bot), str(bot), MatchConfig(seed=2, max_rounds=30))
-    last = replay["rounds"][-1]
-    ages = {}
-    for i, rnd in enumerate(replay["rounds"], 1):
-        for ev in rnd.get("events", []):
-            if ev[0] == "spawn":
-                ages[ev[1]] = 30 - i
-    for rid, text in last.get("ind", []):
-        assert int(text) == ages[rid], (rid, text, ages[rid])
+    assert replay["stats"][0]["squads_spawned"] >= 3
+    assert replay["stats"][0]["exceptions"] == 0 and replay["stats"][1]["exceptions"] == 0

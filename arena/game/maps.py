@@ -1,14 +1,13 @@
-"""Symmetric map generation and map files.
+"""Symmetric map generation and map files for "Frontier".
 
-Maps are always symmetric (rotational, mirrored left/right, or mirrored top/bottom),
-so both teams face exactly the same situation. Bots are not told which symmetry is used.
+Maps are symmetric (rotational, mirrored left/right, or mirrored top/bottom) so both
+teams face the same situation. Bots are not told which symmetry is used.
 """
 
 from __future__ import annotations
 
 import json
 import random
-from collections import deque
 from dataclasses import dataclass, field
 
 from . import constants as C
@@ -20,9 +19,9 @@ SYMMETRIES = ("rotational", "mirror_x", "mirror_y")
 class MapData:
     width: int
     height: int
-    walls: set = field(default_factory=set)          # {(x, y)}
-    ore: dict = field(default_factory=dict)          # {(x, y): amount}
-    hq: list = field(default_factory=list)           # [(x, y) team A, (x, y) team B]
+    hq: list                                   # [(x, y) team A, (x, y) team B]
+    rich: set = field(default_factory=set)     # {(x, y)} resource-rich tiles
+    walls: set = field(default_factory=set)    # {(x, y)} (none in generated maps yet)
     symmetry: str = "rotational"
     name: str = "generated"
 
@@ -32,9 +31,9 @@ class MapData:
             "width": self.width,
             "height": self.height,
             "symmetry": self.symmetry,
-            "walls": sorted([x, y] for x, y in self.walls),
-            "ore": sorted([x, y, a] for (x, y), a in self.ore.items()),
             "hq": [list(p) for p in self.hq],
+            "rich": sorted([x, y] for x, y in self.rich),
+            "walls": sorted([x, y] for x, y in self.walls),
         }
 
     @staticmethod
@@ -42,9 +41,9 @@ class MapData:
         m = MapData(
             width=int(d["width"]),
             height=int(d["height"]),
-            walls={(int(x), int(y)) for x, y in d.get("walls", [])},
-            ore={(int(x), int(y)): int(a) for x, y, a in d.get("ore", [])},
             hq=[tuple(map(int, p)) for p in d["hq"]],
+            rich={(int(x), int(y)) for x, y in d.get("rich", [])},
+            walls={(int(x), int(y)) for x, y in d.get("walls", [])},
             symmetry=d.get("symmetry", "unknown"),
             name=d.get("name", "custom"),
         )
@@ -54,14 +53,18 @@ class MapData:
     def validate(self) -> None:
         if len(self.hq) != 2:
             raise ValueError("map needs exactly two HQ positions")
-        for x, y in list(self.walls) + list(self.ore) + list(self.hq):
-            if not (0 <= x < self.width and 0 <= y < self.height):
-                raise ValueError(f"map tile ({x}, {y}) is out of bounds")
-        for p in self.hq:
-            if p in self.walls:
-                raise ValueError(f"HQ at {p} is on a wall")
-        if not _reachable(self.width, self.height, self.walls, self.hq[0], self.hq[1]):
-            raise ValueError("the two HQs are not connected")
+        for x, y in self.hq:
+            if not (1 <= x < self.width - 1 and 1 <= y < self.height - 1):
+                raise ValueError(f"HQ ({x}, {y}) must have all 8 neighbours on the map")
+        (ax, ay), (bx, by) = self.hq
+        if max(abs(ax - bx), abs(ay - by)) < 6:
+            raise ValueError("HQs are too close")
+        camps = {(x + dx, y + dy) for x, y in self.hq for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+        for p in list(self.rich) + list(self.walls):
+            if not (0 <= p[0] < self.width and 0 <= p[1] < self.height):
+                raise ValueError(f"tile {p} is out of bounds")
+        if camps & self.walls:
+            raise ValueError("walls overlap a starting camp")
 
 
 def load_map(path: str) -> MapData:
@@ -77,91 +80,74 @@ def _mirror_fn(sym: str, w: int, h: int):
     return lambda x, y: (x, h - 1 - y)
 
 
-_NEIGH8 = [(dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
-
-
-def _flood(w, h, walls, start):
-    seen = {start}
-    q = deque([start])
-    while q:
-        x, y = q.popleft()
-        for dx, dy in _NEIGH8:
-            n = (x + dx, y + dy)
-            if 0 <= n[0] < w and 0 <= n[1] < h and n not in walls and n not in seen:
-                seen.add(n)
-                q.append(n)
-    return seen
-
-
-def _reachable(w, h, walls, a, b) -> bool:
-    return b in _flood(w, h, walls, a)
+_N4 = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
 def generate_map(seed: int, width: int | None = None, height: int | None = None) -> MapData:
     """Generate a random symmetric map. Same seed -> same map."""
     rng = random.Random(f"map:{seed}")
-    for _attempt in range(200):
-        w = width or rng.randint(C.MAP_MIN_SIZE, C.MAP_MAX_SIZE)
-        h = height or rng.randint(C.MAP_MIN_SIZE, C.MAP_MAX_SIZE)
+    w = width or C.MAP_WIDTH
+    h = height or C.MAP_HEIGHT
+    for _attempt in range(500):
         sym = rng.choice(SYMMETRIES)
         mirror = _mirror_fn(sym, w, h)
-
         if sym == "mirror_x":
-            ax, ay = rng.randint(2, w // 4), rng.randint(2, h - 3)
+            ax, ay = rng.randint(3, w // 5), rng.randint(3, h - 4)
         elif sym == "mirror_y":
-            ax, ay = rng.randint(2, w - 3), rng.randint(2, h // 4)
+            ax, ay = rng.randint(3, w - 4), rng.randint(3, h // 5)
         else:
-            ax, ay = rng.randint(2, w // 3), rng.randint(2, h - 3)
+            ax, ay = rng.randint(3, w // 4), rng.randint(3, h - 4)
         bx, by = mirror(ax, ay)
-        if (ax - bx) ** 2 + (ay - by) ** 2 < (0.55 * min(w, h)) ** 2:
+        if max(abs(ax - bx), abs(ay - by)) < 0.6 * min(w, h):
             continue
         hqs = [(ax, ay), (bx, by)]
 
-        def near_hq(x, y, r2=8):
-            return any((x - hx) ** 2 + (y - hy) ** 2 <= r2 for hx, hy in hqs)
+        def far_from_hqs(p, d=7):
+            return all(max(abs(p[0] - hx), abs(p[1] - hy)) >= d for hx, hy in hqs)
 
-        # walls: random-walk blobs, mirrored
-        walls: set = set()
-        for _ in range(rng.randint(w * h // 110, w * h // 70)):
-            x, y = rng.randrange(w), rng.randrange(h)
-            for _ in range(rng.randint(3, 9)):
-                for p in ((x, y), mirror(x, y)):
-                    if not near_hq(*p):
-                        walls.add(p)
-                dx, dy = rng.choice(((1, 0), (-1, 0), (0, 1), (0, -1)))
-                x = min(w - 1, max(0, x + dx))
-                y = min(h - 1, max(0, y + dy))
+        def grow(start: set, size: int, symmetric: bool) -> set:
+            cells = set(start)
+            for _ in range(200):
+                if len(cells) >= size:
+                    break
+                cx, cy = rng.choice(sorted(cells))
+                dx, dy = rng.choice(_N4)
+                n = (cx + dx, cy + dy)
+                if not (1 <= n[0] < w - 1 and 1 <= n[1] < h - 1) or not far_from_hqs(n):
+                    continue
+                cells.add(n)
+                if symmetric:
+                    cells.add(mirror(*n))
+            return cells
 
-        if not _reachable(w, h, walls, hqs[0], hqs[1]):
+        rich: set = set()
+        lo, hi = C.RICH_CLUSTER_SIZE
+        # one mirrored pair of clusters
+        for _ in range(100):
+            seed_cell = (rng.randrange(2, w - 2), rng.randrange(2, h - 2))
+            m = mirror(*seed_cell)
+            if far_from_hqs(seed_cell, 9) and max(abs(seed_cell[0] - m[0]), abs(seed_cell[1] - m[1])) >= 12:
+                break
+        else:
             continue
-        reach = _flood(w, h, walls, hqs[0])
-
-        # ore: clusters, one guaranteed near each HQ, mirrored
-        ore: dict = {}
-
-        def add_cluster(cx, cy):
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    x, y = cx + dx, cy + dy
-                    if not (0 <= x < w and 0 <= y < h) or rng.random() > 0.6:
-                        continue
-                    amount = rng.randint(C.ORE_DEPOSIT_MIN, C.ORE_DEPOSIT_MAX)
-                    for p in ((x, y), mirror(x, y)):
-                        if p not in walls and p in reach and p not in hqs:
-                            ore[p] = amount
-
-        angle_dirs = [(dx, dy) for dx in range(-7, 8) for dy in range(-7, 8) if 16 <= dx * dx + dy * dy <= 49]
-        dx, dy = rng.choice(angle_dirs)
-        add_cluster(min(w - 2, max(1, ax + dx)), min(h - 2, max(1, ay + dy)))
-        for _ in range(rng.randint(4, 7)):
-            add_cluster(rng.randrange(1, w - 1), rng.randrange(1, h - 1))
-        if len(ore) < 12:
+        cluster = grow({seed_cell}, rng.randint(lo, hi), symmetric=False)
+        if max(abs(x - mx) for (x, _), (mx, _) in zip(sorted(cluster), sorted(cluster))) > 4:
             continue
-
-        m = MapData(w, h, walls, ore, hqs, sym, name=f"gen-{seed}")
+        rich |= cluster | {mirror(*p) for p in cluster}
+        if len(rich) != 2 * len(cluster):
+            continue  # cluster touched its own mirror image
+        # optionally a self-symmetric cluster in the middle
+        if rng.choice(C.RICH_CLUSTERS) == 3:
+            cx, cy = w // 2, h // 2
+            if sym == "mirror_x":
+                cy = rng.randrange(h // 3, 2 * h // 3)
+            elif sym == "mirror_y":
+                cx = rng.randrange(w // 3, 2 * w // 3)
+            middle = grow({(cx, cy), mirror(cx, cy)}, lo, symmetric=True)
+            if middle & rich:
+                continue
+            rich |= middle
+        m = MapData(w, h, hqs, rich, set(), sym, name=f"gen-{seed}")
+        m.validate()
         return m
-
-    # fallback: open map
-    w = width or 30
-    h = height or 30
-    return MapData(w, h, set(), {(5, 5): 100, (w - 6, h - 6): 100}, [(3, 3), (w - 4, h - 4)], "rotational", f"gen-{seed}")
+    raise RuntimeError(f"could not generate a map for seed {seed}")

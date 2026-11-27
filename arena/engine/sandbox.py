@@ -2,7 +2,7 @@
 
 Threat model: bots are written by AI models that are trying to win. They might,
 deliberately or not, take shortcuts: read the engine's state, peek at the opponent,
-monkeypatch shared classes, use unlimited compute, or share memory between robots.
+monkeypatch shared classes, use unlimited compute, or share memory between squads.
 This module (with ``meter.py`` and the sealed SDK types) makes those shortcuts fail
 loudly. It is NOT a hardened security boundary against a determined human attacker;
 run untrusted code from unknown sources in a container/VM as well.
@@ -13,10 +13,10 @@ Layers:
    introspection attributes, no ``str.format`` attribute traversal, no async, no
    metaclasses, imports only from a whitelist.
 2. Restricted builtins: no ``open``/``eval``/``exec``/``type``/``id``/``vars``/``globals``...;
-   ``getattr``-family re-checks names at runtime; ``print`` goes to the robot's log.
-3. Per-robot module copies: every robot gets its *own* copy of each imported module
+   ``getattr``-family re-checks names at runtime; ``print`` goes to the agent's log.
+3. Per-agent module copies: every squad and HQ gets its *own* copy of each imported module
    (and its own copies of pure-Python functions/classes in it), so module state can't
-   be used as a side channel between robots or to sabotage the other team.
+   be used as a side channel between squads or to sabotage the other team.
 4. The RobotController exposes no attributes at all; game state lives in the engine.
 """
 
@@ -255,8 +255,8 @@ def _exports_of(name: str) -> tuple:
 
 
 def _isolate(obj):
-    """Per-robot copy of a pure-Python function or mutable class, so that setting
-    attributes on it can't leak to other robots or the other team."""
+    """Per-agent copy of a pure-Python function or mutable class, so that setting
+    attributes on it can't leak to other squads or the other team."""
     if isinstance(obj, types.FunctionType):
         f = types.FunctionType(obj.__code__, obj.__globals__, obj.__name__, obj.__defaults__, obj.__closure__)
         f.__kwdefaults__ = dict(obj.__kwdefaults__) if obj.__kwdefaults__ else None
@@ -294,7 +294,7 @@ def _build_module(name: str, rng_seed: str) -> types.ModuleType:
 
 
 def make_globals(module_name: str, rng_seed: str, log_sink, print_cost: int) -> dict:
-    """Fresh module globals for one robot."""
+    """Fresh module globals for one squad or HQ."""
     cache: dict[str, types.ModuleType] = {}
 
     def __import__(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002

@@ -48,20 +48,23 @@ def format_summary(replay: dict) -> str:
     for i, errs in enumerate(replay.get("load_errors", [])):
         for e in errs:
             out.append(f"  load error {teams[i]}: {e}")
-    hdr = f"  {'bot':<16}{'miners':>7}{'soldiers':>9}{'ore mined':>10}{'damage':>8}{'kills':>6}{'instr/turn':>11}{'over-budget':>12}{'exceptions':>11}{'timeouts':>9}"
-    out.append(hdr)
+    cols = [
+        ("territory", lambda s: s["final_territory"]), ("gold", lambda s: s["final_gold"]),
+        ("soldiers", lambda s: s["final_soldiers"]), ("spawned", lambda s: s["soldiers_spawned"]),
+        ("claimed", lambda s: s["tiles_claimed"] + s["tiles_repaired"]), ("razed", lambda s: s["tiles_razed"]),
+        ("killed", lambda s: s["enemy_soldiers_killed"]), ("instr/turn", lambda s: s["avg_instructions_per_turn"]),
+        ("over-budget", lambda s: s["budget_exceeded"]), ("exceptions", lambda s: s["exceptions"]),
+        ("timeouts", lambda s: s["timeouts"]),
+    ]
+    out.append(f"  {'bot':<16}" + "".join(f"{name:>12}" for name, _ in cols))
     for i, st in enumerate(replay["stats"]):
-        out.append(
-            f"  {teams[i]:<16}{st['built']['MINER']:>7}{st['built']['SOLDIER']:>9}{st['ore_mined']:>10}"
-            f"{st['damage_dealt']:>8}{st['kills']:>6}{st['avg_instructions_per_turn']:>11}"
-            f"{st['budget_exceeded']:>12}{st['exceptions']:>11}{st['timeouts']:>9}"
-        )
+        out.append(f"  {teams[i]:<16}" + "".join(f"{fn(st):>12}" for _, fn in cols))
     errs = replay.get("errors", [])
     if errs:
         out.append(f"First {min(len(errs), 5)} of {len(errs)} recorded problems:")
         for e in errs[:5]:
             msg = e["message"].replace("\n", "\n      ")
-            out.append(f"  - round {e['round']} {teams[e['team']]} {e['type']} #{e['robot']} [{e['kind']}]\n      {msg}")
+            out.append(f"  - round {e['round']} {teams[e['team']]} {e['type']} #{e['agent']} [{e['kind']}]\n      {msg}")
     return "\n".join(out)
 
 
@@ -152,7 +155,7 @@ def main(argv=None) -> int:
     r.add_argument("--rounds", type=int, help="round limit (default from game constants)")
     r.add_argument("--map", help="JSON map file instead of a generated map")
     r.add_argument("--size", type=_size, help="generated map size, e.g. 32x28")
-    r.add_argument("--time-limit", type=float, default=0.1, help="CPU seconds per robot turn (default 0.1)")
+    r.add_argument("--time-limit", type=float, default=0.2, help="CPU seconds per agent turn (default 0.2)")
     r.add_argument("--out", help="replay path (default replays/A-vs-B-sSEED.json)")
     r.add_argument("--no-html", action="store_true", help="don't write the HTML viewer next to the replay")
     r.add_argument("--logs", action="store_true", help="print the bots' print() output")
@@ -170,7 +173,7 @@ def main(argv=None) -> int:
     t.add_argument("--seed", type=int, default=1)
     t.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     t.add_argument("--rounds", type=int)
-    t.add_argument("--time-limit", type=float, default=0.1)
+    t.add_argument("--time-limit", type=float, default=0.2)
     t.add_argument("--timeout", type=float, default=600, help="wall-clock seconds per match before it is aborted")
     t.add_argument("--out", help="output directory (default results/latest)")
     t.add_argument("--no-replays", action="store_true")

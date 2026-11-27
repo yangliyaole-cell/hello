@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import time
 import traceback
 from dataclasses import dataclass
@@ -10,8 +11,7 @@ from .. import __version__
 from ..game import constants as C
 from ..game.controller import new_controller, release, set_active
 from ..game.maps import MapData, generate_map, load_map
-from ..game.types import RobotType
-from ..game.world import GameWorld, Robot
+from ..game.world import Agent, GameWorld
 from .loader import BotProgram
 from .meter import BUDGET, ERROR, METER, OK, TIMEOUT
 from .sandbox import make_globals
@@ -28,23 +28,24 @@ class MatchConfig:
     map_file: str | None = None
     map_width: int | None = None
     map_height: int | None = None
-    time_limit: float = 0.1     # CPU seconds per robot turn (backstop for C-level work)
-    record: bool = True         # store per-round snapshots in the replay
+    time_limit: float = 0.2     # CPU seconds per agent turn (backstop for C-level work)
+    record: bool = True         # store per-turn frames in the replay
 
 
-class _RobotRunner:
-    __slots__ = ("program", "robot", "rc", "globals", "turn_fn", "broken", "module_name", "rng_seed", "log_chars")
+class _Runner:
+    """One program instance: a squad's or HQ's private copy of the team's bot module."""
 
-    def __init__(self, program: BotProgram, robot: Robot, world: GameWorld, seed: int):
+    __slots__ = ("program", "agent", "rc", "globals", "turn_fn", "module_name", "rng_seed", "log_chars")
+
+    def __init__(self, program: BotProgram, agent: Agent, world: GameWorld, seed: int):
         self.program = program
-        self.robot = robot
-        self.rc = new_controller(world, robot)
+        self.agent = agent
+        self.rc = new_controller(world, agent)
         self.globals = None
         self.turn_fn = None
-        self.broken = False
-        self.module_name = f"bot_{TEAM_NAMES[robot.team]}_{robot.id}"
+        self.module_name = f"bot_{TEAM_NAMES[agent.team]}_{agent.id}"
         # string seeds hash with sha512 -> independent of PYTHONHASHSEED
-        self.rng_seed = f"{seed}:{robot.team}:{robot.spawn_index}"
+        self.rng_seed = f"{seed}:{agent.team}:{agent.spawn_index}"
         self.log_chars = 0
 
 
@@ -66,58 +67,54 @@ class Match:
         self.logs: list = []
         self.world: GameWorld | None = None
 
-    # ------------------------------------------------------------------ helpers
-
     def _map(self) -> MapData:
         if self.cfg.map_file:
             return load_map(self.cfg.map_file)
         return generate_map(self.cfg.seed, self.cfg.map_width, self.cfg.map_height)
 
-    def _record_error(self, runner: _RobotRunner, kind: str, message: str) -> None:
-        t = runner.robot.team
+    def _record_error(self, runner: _Runner, kind: str, message: str) -> None:
+        t = runner.agent.team
         if self._error_counts[t] >= MAX_ERRORS_PER_TEAM:
             return
         self._error_counts[t] += 1
         self.errors.append({
-            "round": self.world.round, "team": t, "robot": runner.robot.id,
-            "type": runner.robot.type.name, "kind": kind, "message": message,
+            "round": self.world.round, "turn": self.world.turn, "team": t, "agent": runner.agent.id,
+            "type": "HQ" if runner.agent.is_hq else "SQUAD", "kind": kind, "message": message,
         })
 
-    def _sink_for(self, runner: _RobotRunner):
+    def _sink_for(self, runner: _Runner):
         def sink(text: str) -> None:
             room = C.LOG_MAX_CHARS_PER_TURN - runner.log_chars
             if room <= 0 or len(self.logs) >= MAX_LOG_LINES:
                 return
             text = text[:room]
             runner.log_chars += len(text)
-            self.logs.append([self.world.round, runner.robot.team, runner.robot.id, text.rstrip("\n")])
+            self.logs.append([self.world.turn, runner.agent.team, runner.agent.id, text.rstrip("\n")])
         return sink
 
-    def _handle_status(self, runner: _RobotRunner, status: str, exc, phase: str) -> None:
-        robot = runner.robot
-        st = self.world.stats[robot.team]
+    def _handle_status(self, runner: _Runner, status: str, exc, phase: str) -> None:
+        agent = runner.agent
+        st = self.world.stats[agent.team]
         if status == OK:
             return
         if status == ERROR:
             st["exceptions"] += 1
-            self.world.events.append(["err", robot.id])
+            self.world.note(agent, "err")
             self._record_error(runner, f"{phase}-exception", _format_exception(exc, runner.program.filename))
         elif status == BUDGET:
             st["budget_exceeded"] += 1
-            self.world.events.append(["over", robot.id])
+            self.world.note(agent, "over")
             if st["budget_exceeded"] <= 5:
-                limit = C.INIT_BUDGET if phase == "init" else robot.type.budget
+                limit = C.INIT_BUDGET if phase == "init" else (C.HQ_BUDGET if agent.is_hq else C.SQUAD_BUDGET)
                 self._record_error(runner, f"{phase}-budget", f"instruction budget of {limit} exceeded; turn ended early")
         elif status == TIMEOUT:
             st["timeouts"] += 1
-            self.world.events.append(["tle", robot.id])
+            self.world.note(agent, "tle")
             if st["timeouts"] <= 5:
                 self._record_error(runner, f"{phase}-timeout", f"CPU time limit of {self.cfg.time_limit}s per turn exceeded")
 
-    def _turn(self, runner: _RobotRunner) -> None:
-        robot = runner.robot
-        world = self.world
-        robot.indicator = robot.dots = robot.lines = None
+    def _turn(self, runner: _Runner) -> None:
+        agent = runner.agent
         runner.log_chars = 0
         used_total = 0
         set_active(runner.rc, True)
@@ -128,33 +125,29 @@ class Match:
                 used_total += used
                 self._handle_status(runner, status, exc, "init")
                 fn = runner.globals.get("turn")
-                if status != OK or not callable(fn):
-                    runner.broken = True
-                    if status == OK:
-                        self._record_error(runner, "init-exception", "module does not define a callable turn(rc)")
-                else:
+                if status == OK and callable(fn):
                     runner.turn_fn = fn
-            if runner.turn_fn is not None:
-                status, used, exc = METER.run(runner.turn_fn, (runner.rc,), robot.type.budget, self.cfg.time_limit)
+                elif status == OK:
+                    self._record_error(runner, "init-exception", "module does not define a callable turn(rc)")
+            if runner.turn_fn is not None and agent.alive:
+                budget = C.HQ_BUDGET if agent.is_hq else C.SQUAD_BUDGET
+                status, used, exc = METER.run(runner.turn_fn, (runner.rc,), budget, self.cfg.time_limit)
                 used_total += used
                 self._handle_status(runner, status, exc, "turn")
         finally:
             set_active(runner.rc, False)
-        robot.used = used_total
-        st = world.stats[robot.team]
+        agent.used = used_total
+        st = self.world.stats[agent.team]
         st["turns"] += 1
         st["instructions"] += used_total
-
-    # ------------------------------------------------------------------ main loop
 
     def run(self) -> dict:
         t0 = time.time()
         a, b = self.programs
         load_errors = [p.errors for p in (a, b)]
-        mapdata = self._map()
-        self.world = world = GameWorld(mapdata, self.cfg.seed, self.cfg.max_rounds)
-        rounds: list = []
-        initial = world.snapshot()
+        self.world = world = GameWorld(self._map(), self.cfg.seed, self.cfg.max_rounds)
+        initial = world.initial_frame()
+        frames: list = []
 
         if not a.ok or not b.ok:
             if a.ok:
@@ -163,58 +156,76 @@ class Match:
                 world.winner, world.reason = 1, "opponent's bot failed to load"
             else:
                 world.reason = "both bots failed to load"
-            return self._replay(initial, rounds, load_errors, time.time() - t0, draw=not a.ok and not b.ok)
+            return self._replay(initial, frames, load_errors, time.time() - t0, draw=not a.ok and not b.ok)
 
-        runners: dict[int, _RobotRunner] = {}
+        runners: dict[int, _Runner] = {}
+        # Garbage collection pauses would be billed to whichever bot happens to be running,
+        # so collect between turns instead, outside the timed sections.
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            self._loop(world, runners, frames)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
+        return self._replay(initial, frames, load_errors, time.time() - t0)
+
+    def _loop(self, world: GameWorld, runners: dict, frames: list) -> None:
         while not world.over:
-            world.begin_round()
-            for robot in world.turn_order():
-                if not robot.alive:
-                    continue
-                runner = runners.get(robot.id)
+            team = world.begin_turn()
+            for agent in world.turn_agents():
+                if not agent.alive:
+                    continue  # merged into another squad earlier this turn
+                runner = runners.get(agent.id)
                 if runner is None:
-                    runner = runners[robot.id] = _RobotRunner(self.programs[robot.team], robot, world, self.cfg.seed)
+                    runner = runners[agent.id] = _Runner(self.programs[team], agent, world, self.cfg.seed)
                 if self.on_turn is not None:
-                    self.on_turn(robot.team)
+                    self.on_turn(team)
+                world.before_agent_turn(agent)
                 self._turn(runner)
-                if world.over:
-                    break
-            world.end_round()
-            for rid in [rid for rid, rn in runners.items() if not rn.robot.alive]:
-                release(runners.pop(rid).rc)
+                world.after_agent_turn(agent)
+            world.end_turn()
+            for aid in world.gone:
+                rn = runners.pop(aid, None)
+                if rn is not None:
+                    release(rn.rc)
             if self.cfg.record:
-                rounds.append(world.snapshot())
+                frames.append(world.frame())
+            if world.turn % 20 == 0:
+                gc.collect(1 if world.turn % 400 else 2)
         for rn in runners.values():
             release(rn.rc)
-        return self._replay(initial, rounds, load_errors, time.time() - t0)
 
-    def _replay(self, initial, rounds, load_errors, elapsed, draw=False) -> dict:
+    def _replay(self, initial, frames, load_errors, elapsed, draw=False) -> dict:
         w = self.world
         names = [p.name for p in self.programs]
         winner = None if draw else w.winner
         stats = w.stats
-        for st in stats:
+        for t, st in enumerate(stats):
             st["avg_instructions_per_turn"] = round(st["instructions"] / st["turns"]) if st["turns"] else 0
+            st["final_territory"] = w.tiles[t]
+            st["final_gold"] = w.gold[t]
+            st["final_soldiers"] = w.soldiers[t] + w.hq[t].n
         return {
             "format": "arena-replay",
-            "version": 1,
+            "version": 2,
+            "game": "frontier",
             "engine": __version__,
             "seed": self.cfg.seed,
             "teams": [{"name": names[0], "side": "A"}, {"name": names[1], "side": "B"}],
             "map": w.map.to_json(),
-            "types": [
-                {"name": t.name, "letter": t.name[0], "cost": t.cost, "health": t.health,
-                 "vision_radius_sq": t.vision_radius_sq, "action_radius_sq": t.action_radius_sq,
-                 "budget": t.budget}
-                for t in RobotType.all()
-            ],
+            "rules": {
+                "max_rounds": w.max_rounds, "hq_garrison": C.HQ_GARRISON, "squad_budget": C.SQUAD_BUDGET,
+                "hq_budget": C.HQ_BUDGET, "vision_radius": C.VISION_RADIUS,
+            },
             "initial": initial,
-            "rounds": rounds,
+            "frames": frames,
             "result": {
                 "winner": winner,
                 "winner_name": None if winner is None else names[winner],
                 "reason": w.reason,
                 "rounds": w.round,
+                "turns": w.turn,
             },
             "stats": stats,
             "load_errors": load_errors,
