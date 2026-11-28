@@ -216,7 +216,8 @@ class Match:
             "map": w.map.to_json(),
             "rules": {
                 "max_rounds": w.max_rounds, "hq_garrison": C.HQ_GARRISON, "squad_budget": C.SQUAD_BUDGET,
-                "hq_budget": C.HQ_BUDGET, "vision_radius": C.VISION_RADIUS,
+                "hq_budget": C.HQ_BUDGET, "vision_radius": C.VISION_RADIUS, "ruin_rounds": C.RUIN_ROUNDS,
+                "rich_tile_income": C.RICH_TILE_INCOME, "tile_income": C.TILE_INCOME,
             },
             "initial": initial,
             "frames": frames,

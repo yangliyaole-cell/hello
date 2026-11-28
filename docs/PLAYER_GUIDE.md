@@ -16,7 +16,7 @@ Every squad and the HQ runs its own copy of your module: module-level variables 
 squad's private memory. How squads can share information is described in section 6.
 
 Rules are enforced by the engine: illegal actions raise `GameActionError`, and compute is
-metered (section 7).
+metered (section 7). Every function you can call is documented in [SDK.md](SDK.md).
 
 ---
 
@@ -104,6 +104,9 @@ the current turn is merged into another squad, its turn ends.
 **Razing enemy territory** — `rc.raze()`
 - Stand on an enemy territory tile with no enemy soldiers on it: it immediately becomes a
   **ruin** (neutral). Free. HQ tiles cannot be razed.
+- A ruin is nobody's territory: it produces no income, does not connect territory tiles to
+  the HQ (8-neighbour connectivity only passes through territory), and counts as a gap for the
+  separation rule (only territory tiles are checked). Either team may occupy (repair) it.
 - A ruin turns back into a blank tile after **20 rounds**. While someone is occupying (repairing)
   it the countdown pauses; if that occupation is cancelled, the countdown continues where it stopped.
 
@@ -198,100 +201,24 @@ Your file is checked before the match. A bot that fails the checks **forfeits**.
 
 ## 10. API reference
 
-Wrong argument types raise `TypeError`. Illegal actions raise `GameActionError` with the reason.
-Every action has a `can_*` check that returns `False` instead.
+The complete reference for every `rc` method, value type and constant, with costs, return
+values, error conditions and examples, is in **[SDK.md](SDK.md)**. Read it before writing code.
 
-### Information (cost 1 each)
+Quick index:
 
-| Method | Returns |
-|---|---|
-| `get_id()` | this squad's / HQ's id |
-| `get_team()` | `Team.A` or `Team.B` |
-| `is_hq()` | `True` for the HQ |
-| `get_location()` | `Location` |
-| `get_soldiers()` | soldiers in this squad (HQ: its garrison) |
-| `get_move_capacity()` | soldiers of this squad that can still move this turn |
-| `get_round()`, `get_turn()` | see section 1 |
-| `get_map_width()`, `get_map_height()` | 50, 50 |
-| `get_hq_location()` | your HQ's `Location` |
-| `get_gold()`, `get_available_gold()` | gold, and gold minus reserved |
-| `get_income()`, `get_upkeep()` | gold per round from territory / for soldiers |
-| `get_territory_count()` | your territory tiles |
-| `get_total_soldiers()` | soldiers in all your squads |
-| `get_squad_count()`, `get_squad_limit()` | squads, and the maximum allowed |
-| `get_spawns_left()` | spawns left this round (HQ) |
-| `is_on_network()` | see section 6 |
-| `get_budget_left()`, `get_budget_used()` | instructions this turn |
-| `get_owned_tiles(connected_only=False)` | list of your territory `Location`s (+1 per 4 tiles) |
-
-### Sensing
-
-| Method | Cost | Notes |
-|---|---:|---|
-| `can_see(loc)` | 2 | bool |
-| `sense_tile(loc)` | 5 | `TileInfo`; raises if not visible |
-| `sense_squads_at(loc)` | 5 | list of `SquadInfo` on that tile (yourself excluded) |
-| `sense_nearby_squads(team=None)` | 20 + 1/item | squads in your own 5×5 view, nearest first |
-| `sense_nearby_tiles()` | 20 + 1/item | `TileInfo` for every tile in your own 5×5 view |
-| `sense_network_squads(team=None)` | 20 + 1/item | everything visible to you, including territory vision. Network only |
-| `sense_network_tiles()` | 20 + 1/item | same, for tiles. Network only |
-
-### Actions
-
-| Method | Cost | Who |
-|---|---:|---|
-| `can_move(direction, soldiers=None)` / `move(direction, soldiers=None)` → squad id | 5 / 10 | squad |
-| `can_occupy(gold_per_soldier=1)` / `occupy(gold_per_soldier=1)` → rounds | 5 / 10 | squad |
-| `occupation_quote(gold_per_soldier=1)` → `(price, rounds)` | 1 | squad |
-| `can_raze()` / `raze()` | 5 / 10 | squad |
-| `can_disband(soldiers=None)` / `disband(soldiers=None)` | 5 / 10 | squad |
-| `can_spawn(location, soldiers)` / `spawn(location, soldiers)` → squad id | 5 / 10 | HQ |
-
-`move` returns the id of the squad that holds the moved soldiers afterwards (a new squad when
-splitting, or the squad they merged with).
-
-### Communication
-
-| Method | Cost | Notes |
-|---|---:|---|
-| `set_memo(data)`, `get_memo()` | 5 + 1/value | plain data, see section 6 |
-| `get_inbox()` | 5 + 1/value | list of memos received |
-| `read_board(index)` / `write_board(index, value)` | 2 / 5 | network only; 128 slots |
-
-### Debug drawing (shown in the replay viewer)
-
-| Method | Cost | Notes |
-|---|---:|---|
-| `set_indicator_string(text)` | 5 | up to 64 characters |
-| `set_indicator_dot(loc, color="yellow")` | 5 | up to 16 per turn |
-| `set_indicator_line(start, end, color="yellow")` | 5 | up to 16 per turn |
-
-Colors: `"red"`, `"green"`, `"blue"`, `"yellow"`, `"orange"`, `"purple"`, `"cyan"`, `"pink"`,
-`"white"`, `"black"`, `"gray"`, or an `(r, g, b)` tuple of ints 0–255.
-
-### Value types (from `arena.sdk`, all immutable)
-
-**`Location(x, y)`** — behaves like a tuple (`x, y = loc`, usable as a dict key).
-`.x`, `.y`, `.add(direction)`, `.subtract(direction)`, `.translate(dx, dy)`,
-`.distance_sq(other)`, `.steps_to(other)` (moves needed: `max(|dx|, |dy|)`),
-`.is_adjacent_to(other)`, `.direction_to(other)` (nearest of the 8 directions).
-
-**`Direction`** — `NORTH`, `NORTHEAST`, `EAST`, `SOUTHEAST`, `SOUTH`, `SOUTHWEST`, `WEST`,
-`NORTHWEST`, `CENTER`. `.dx`, `.dy`, `.name`, `.rotate_left()`, `.rotate_right()`, `.opposite()`,
-`Direction.all()` (the 8 non-center directions), `Direction.cardinal()`, `Direction.from_delta(dx, dy)`.
-
-**`Team`** — `Team.A`, `Team.B`; `.opponent()`, `.name`.
-
-**`TileKind`** — `BLANK`, `TERRITORY`, `RUINED`, `WALL`.
-
-**`TileInfo`** — `.location`, `.kind`, `.owner` (`Team` or `None`), `.rich`, `.hq`, `.garrison`
-(HQ tiles), `.ruin_rounds` (rounds until a ruin turns blank), `.occupation` (`OccupationInfo` or `None`).
-
-**`OccupationInfo`** — `.team`, `.rounds_done`, `.rounds_total`.
-
-**`SquadInfo`** — `.id`, `.team`, `.location`, `.soldiers`, `.last_move` (`Direction` or `None`).
-
-**`GameActionError`**, **`GameConstants`** (all numbers in this guide), **`occupation_rounds(price, ruined=False)`**.
+- About yourself and the game: `get_id`, `get_team`, `is_hq`, `get_location`, `get_soldiers`,
+  `get_move_capacity`, `get_round`, `get_turn`, `get_map_width`, `get_map_height`,
+  `get_hq_location`, `get_gold`, `get_available_gold`, `get_income`, `get_upkeep`,
+  `get_territory_count`, `get_total_soldiers`, `get_squad_count`, `get_squad_limit`,
+  `get_spawns_left`, `is_on_network`, `get_budget_left`, `get_budget_used`, `get_owned_tiles`
+- Sensing: `can_see`, `sense_tile`, `sense_squads_at`, `sense_nearby_squads`, `sense_nearby_tiles`,
+  `sense_network_squads`, `sense_network_tiles`
+- Squad actions: `move`, `occupy`, `occupation_quote`, `raze`, `disband` (each with a `can_*` check)
+- HQ actions: `spawn` (with `can_spawn`)
+- Communication: `set_memo`, `get_memo`, `get_inbox`, `read_board`, `write_board`
+- Debug drawing: `set_indicator_string`, `set_indicator_dot`, `set_indicator_line`
+- Types: `Location`, `Direction`, `Team`, `TileKind`, `TileInfo`, `SquadInfo`, `OccupationInfo`,
+  `GameActionError`, `GameConstants`, `occupation_rounds`
 
 ---
 

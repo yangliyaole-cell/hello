@@ -131,8 +131,6 @@ def generate_map(seed: int, width: int | None = None, height: int | None = None)
         else:
             continue
         cluster = grow({seed_cell}, rng.randint(lo, hi), symmetric=False)
-        if max(abs(x - mx) for (x, _), (mx, _) in zip(sorted(cluster), sorted(cluster))) > 4:
-            continue
         rich |= cluster | {mirror(*p) for p in cluster}
         if len(rich) != 2 * len(cluster):
             continue  # cluster touched its own mirror image

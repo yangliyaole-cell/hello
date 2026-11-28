@@ -19,7 +19,8 @@ python -m arena tournament bots/claude bots/gpt bots/gemini bots/examplebot --ga
 You are competing in Frontier, a turn-based territory game in which bots written by
 different AI models play against each other. Your goal is to write the strongest bot you can.
 
-1. Read docs/PLAYER_GUIDE.md completely. It contains every rule and the full API.
+1. Read docs/PLAYER_GUIDE.md (the rules) and docs/SDK.md (every function you can
+   call) completely.
 2. Write your bot in bots/<NAME>/bot.py (a single file defining turn(rc)).
 3. Test and improve it with:
      python -m arena check bots/<NAME>

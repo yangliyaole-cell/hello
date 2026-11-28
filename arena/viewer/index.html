@@ -4,134 +4,162 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: match header, then board + transport + timeline on the left, team / inspector / stats / problems rail on the right; one column on phones. */
+/* Layout: header; board (zoomable, scrolls inside its frame) with transport, legend and chart on the left;
+   teams, "this turn", stats and problems on the right; one column on phones. */
 :root {
   --bg: #eceff3;
   --panel: #ffffff;
   --ink: #17202b;
   --muted: #5b6676;
   --line: #d3d9e1;
-  --board: #f7f8fa;
-  --grid: rgba(23, 32, 43, 0.07);
+  --board: #f4f6f9;
+  --grid: rgba(23, 32, 43, 0.08);
   --wall: #48525f;
-  --ore: #c99512;
-  --teamA: #2a5fd3;
-  --teamB: #cf4426;
+  --ore: #e0a100;
+  --ore-edge: #8a5d00;
+  --ruin: #8e97a5;
+  --teamA: #2457d6;
+  --teamB: #d23f1f;
   --good: #1f8a4c;
   --warn: #c26a0a;
-  --bad: #c0263d;
+  --bad: #d01f3c;
   --chip: #e4e8ee;
+  --shadow: rgba(10, 16, 24, 0.28);
   --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0e1319; --panel: #151c25; --ink: #e5eaf1; --muted: #8f9bad; --line: #263140; --board: #111821;
-    --grid: rgba(229, 234, 241, 0.05); --wall: #3a4557; --ore: #e0b33c; --teamA: #6b97ff; --teamB: #ff7b5e;
-    --good: #45c27a; --warn: #f0a04b; --bad: #ff6b81; --chip: #1f2833; color-scheme: dark;
+    --bg: #0d1218; --panel: #151c25; --ink: #e5eaf1; --muted: #93a0b2; --line: #273242; --board: #101720;
+    --grid: rgba(229, 234, 241, 0.06); --wall: #3a4557; --ore: #f2bd2c; --ore-edge: #7a5200; --ruin: #5d6879;
+    --teamA: #5e8dff; --teamB: #ff6e4f; --good: #45c27a; --warn: #f0a04b; --bad: #ff4d6a; --chip: #1f2833;
+    --shadow: rgba(0, 0, 0, 0.55); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0e1319; --panel: #151c25; --ink: #e5eaf1; --muted: #8f9bad; --line: #263140; --board: #111821;
-  --grid: rgba(229, 234, 241, 0.05); --wall: #3a4557; --ore: #e0b33c; --teamA: #6b97ff; --teamB: #ff7b5e;
-  --good: #45c27a; --warn: #f0a04b; --bad: #ff6b81; --chip: #1f2833; color-scheme: dark;
+  --bg: #0d1218; --panel: #151c25; --ink: #e5eaf1; --muted: #93a0b2; --line: #273242; --board: #101720;
+  --grid: rgba(229, 234, 241, 0.06); --wall: #3a4557; --ore: #f2bd2c; --ore-edge: #7a5200; --ruin: #5d6879;
+  --teamA: #5e8dff; --teamB: #ff6e4f; --good: #45c27a; --warn: #f0a04b; --bad: #ff4d6a; --chip: #1f2833;
+  --shadow: rgba(0, 0, 0, 0.55); color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45;
-  margin: 0;
-}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; margin: 0; }
 .app {
-  max-width: 1320px; margin: 0 auto;
-  padding-block: 16px 32px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  display: flex; flex-direction: column; gap: 16px;
+  max-width: 1360px; margin: 0 auto; padding-block: 16px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px;
 }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.top .titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 320px; }
+.titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 320px; }
 .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 3.2vw, 28px); margin: 0; line-height: 1.15; text-wrap: balance; overflow-wrap: anywhere; }
 h1 .vs { color: var(--muted); font-weight: 600; font-size: 0.7em; padding: 0 0.3em; }
 .tA { color: var(--teamA); } .tB { color: var(--teamB); }
 .meta { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--chip); font-size: 13px; font-weight: 500; max-width: 100%; }
-.pill .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.sw { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; min-width: 34px; padding: 0 10px;
   border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer;
 }
 .btn:hover { border-color: var(--muted); }
-.btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--teamA); outline-offset: 2px; }
+.btn:focus-visible, select:focus-visible, input:focus-visible, .linkbtn:focus-visible { outline: 2px solid var(--teamA); outline-offset: 2px; }
 .btn svg { width: 16px; height: 16px; fill: currentColor; }
 .btn.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); }
-.file input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.btn.small { height: 28px; min-width: 28px; padding: 0 8px; font-size: 13px; }
 .file { position: relative; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
-@media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 .stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.board-wrap { position: relative; display: flex; justify-content: center; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 260px; }
-#board { display: block; cursor: crosshair; touch-action: manipulation; }
-.hover { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); background: var(--panel); padding: 1px 6px; border-radius: 4px; pointer-events: none; }
-.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: var(--muted); max-width: 46ch; padding: 24px; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+.tools .group { display: flex; align-items: center; gap: 4px; }
+.readout { font-family: var(--font-mono); font-size: 12px; color: var(--muted); min-height: 1.4em; }
+.board-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; max-height: 80vh; overflow: auto; overscroll-behavior: contain; }
+.board-inner { position: relative; margin: 0 auto; }
+#board { display: block; cursor: pointer; touch-action: manipulation; }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: var(--muted); max-width: 46ch; margin: 0 auto; padding: 48px 24px; }
 .empty strong { color: var(--ink); font-family: var(--font-display); font-size: 18px; }
 code { font-family: var(--font-mono); font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+
+/* info card next to the clicked unit */
+.pop {
+  position: absolute; z-index: 5; width: 270px; max-width: calc(100vw - 48px); background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-top: 4px solid var(--pc, var(--muted)); border-radius: 10px;
+  box-shadow: 0 10px 28px var(--shadow); padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px;
+}
+.pop-head { display: flex; align-items: center; gap: 8px; }
+.pop-head strong { font-family: var(--font-display); font-size: 15px; flex: 1; }
+.pop-sub { color: var(--muted); font-size: 12px; margin-top: -4px; }
+.pop .x { all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--muted); font-size: 18px; }
+.pop .x:hover { background: var(--chip); color: var(--ink); }
+.pop .x:focus-visible { outline: 2px solid var(--teamA); }
+.pop dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; }
+.pop dt { color: var(--muted); }
+.pop dd { margin: 0; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pop .note { font-family: var(--font-mono); font-size: 12px; background: var(--chip); border-radius: 6px; padding: 4px 8px; overflow-wrap: anywhere; }
+.pop .fight { color: var(--bad); font-weight: 600; }
+.bar { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.bar > div { height: 100%; background: var(--pc, var(--ink)); }
+.linkbtn { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
 .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .transport .group { display: flex; gap: 4px; }
 .transport input[type="range"] { flex: 1 1 200px; min-width: 120px; accent-color: var(--ink); }
-.round { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 13px; min-width: 12ch; }
+.round { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 13px; min-width: 15ch; }
 select { height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; padding: 0 8px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; }
+.legend-map { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); }
+.legend-map span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-map svg { width: 18px; height: 18px; flex: none; }
 .timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 6px; }
-.timeline .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.timeline .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 #chart { display: block; width: 100%; height: 96px; cursor: pointer; touch-action: none; }
 .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { all: unset; cursor: pointer; padding: 3px 10px; font-size: 12px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:focus-visible { outline: 2px solid var(--teamA); outline-offset: -2px; }
+.keys { color: var(--muted); font-size: 12px; }
+
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.team { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-top: 3px solid var(--tc); }
-.team .name { font-family: var(--font-display); font-weight: 700; font-size: 15px; overflow-wrap: anywhere; display: flex; gap: 6px; align-items: baseline; justify-content: space-between; }
-.team .side-tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-weight: 400; }
+.team { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-top: 4px solid var(--tc); }
+.team .name { font-family: var(--font-display); font-weight: 700; font-size: 15px; overflow-wrap: break-word; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; justify-content: space-between; }
+.team .name > span:first-child { min-width: 0; max-width: 100%; }
+.team .side-tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+.team .big { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--tc); line-height: 1; font-variant-numeric: tabular-nums; }
+.team .big small { font-family: var(--font-body); font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
 .kv span:nth-child(odd) { color: var(--muted); }
 .kv span:nth-child(even) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.hpbar { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
-.hpbar > div { height: 100%; background: var(--tc); transition: width 120ms linear; }
+.neg { color: var(--bad); }
 .win-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--tc); color: var(--panel); border-radius: 4px; padding: 1px 5px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .panel h2 { margin: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .hint { color: var(--muted); font-size: 13px; margin: 0; }
-.budget { display: flex; flex-direction: column; gap: 3px; }
-.budget .bar { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
-.budget .bar > div { height: 100%; background: var(--ink); }
-.indicator { font-family: var(--font-mono); font-size: 12px; background: var(--chip); border-radius: 6px; padding: 4px 8px; overflow-wrap: anywhere; }
+.turn-head { font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; background: var(--chip); border-radius: 999px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+.fights { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; }
+.fights button { all: unset; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; width: 100%; box-sizing: border-box; padding: 4px 8px; border-radius: 6px; background: var(--chip); font-size: 12px; font-family: var(--font-mono); }
+.fights button:focus-visible { outline: 2px solid var(--teamA); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 3px 0; text-align: right; font-variant-numeric: tabular-nums; }
 th:first-child, td:first-child { text-align: left; color: var(--muted); font-weight: 400; }
 td { font-family: var(--font-mono); }
 thead th { font-family: var(--font-display); font-weight: 600; border-bottom: 1px solid var(--line); padding-bottom: 5px; }
 tbody tr + tr td { border-top: 1px solid var(--grid); }
-.problems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.problems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
 .problems button { all: unset; display: flex; flex-direction: column; gap: 3px; width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 8px; background: var(--chip); cursor: pointer; }
 .problems button:focus-visible { outline: 2px solid var(--teamA); }
 .problems .where { font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .kind { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 5px; border-radius: 4px; color: var(--panel); background: var(--warn); }
 .kind.exception { background: var(--bad); }
 .problems pre { margin: 0; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
-.keys { color: var(--muted); font-size: 12px; }
-@media (prefers-reduced-motion: reduce) { .hpbar > div { transition: none; } }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.seg button { all: unset; cursor: pointer; padding: 3px 10px; font-size: 12px; color: var(--muted); }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
-.seg button:focus-visible { outline: 2px solid var(--teamA); outline-offset: -2px; }
-.squads { display: flex; flex-direction: column; gap: 4px; }
-.squad-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
-.squad-row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.legend-map { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
-.legend-map i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
 </style>
 
 <div class="app">
@@ -147,9 +175,20 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
 
   <main class="layout">
     <section class="stage">
+      <div class="tools">
+        <div class="group">
+          <button class="btn small" id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+          <button class="btn small" id="zoomFit" title="Fit the board" aria-label="Fit the board">Fit</button>
+          <button class="btn small" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+        </div>
+        <span class="readout" id="readout">Tap or click a squad, HQ or tile for details.</span>
+        <label class="toggle"><input type="checkbox" id="debug" checked> Bot drawings</label>
+      </div>
       <div class="board-wrap" id="boardWrap">
-        <canvas id="board" aria-label="Game board" hidden></canvas>
-        <div class="hover" id="hover" hidden></div>
+        <div class="board-inner" id="boardInner">
+          <canvas id="board" aria-label="Game board" hidden></canvas>
+          <div class="pop" id="pop" hidden></div>
+        </div>
         <div class="empty" id="empty">
           <strong>Drop a replay here</strong>
           <span>Replays are written by <code>python -m arena run botA botB</code> to <code>replays/*.json</code>. Drag one onto this page or use “Open replay…”.</span>
@@ -165,21 +204,22 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
           <button class="btn" id="bEnd" title="Last turn (End)" aria-label="Last turn"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
         </div>
         <input type="range" id="slider" min="0" max="0" value="0" aria-label="Turn">
-        <span class="round" id="roundLabel">Round 0</span>
+        <span class="round" id="roundLabel">Start</span>
         <select id="speed" aria-label="Playback speed">
-          <option value="10">10 turns/s</option><option value="25">25 turns/s</option><option value="50" selected>50 turns/s</option>
-          <option value="100">100 turns/s</option><option value="250">250 turns/s</option>
+          <option value="4">4 turns/s</option><option value="10">10 turns/s</option><option value="25" selected>25 turns/s</option>
+          <option value="60">60 turns/s</option><option value="150">150 turns/s</option>
         </select>
-        <label class="toggle"><input type="checkbox" id="debug" checked> Indicators</label>
       </div>
 
-      <div class="legend-map">
-        <span><i style="background: color-mix(in srgb, var(--teamA) 40%, var(--board))"></i>Territory A</span>
-        <span><i style="background: color-mix(in srgb, var(--teamB) 40%, var(--board))"></i>Territory B</span>
-        <span><i style="background: var(--ore)"></i>Resource-rich</span>
-        <span><i style="background: repeating-linear-gradient(45deg, var(--muted) 0 2px, var(--chip) 2px 5px)"></i>Ruin</span>
-        <span><i style="border: 2px solid var(--muted); background: var(--board)"></i>Being occupied</span>
-        <span><i style="border-radius: 50%; background: var(--muted)"></i>Squad (size = soldiers)</span>
+      <div class="legend-map" aria-label="Legend">
+        <span><svg viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="2" style="fill: var(--teamA); opacity: .35"/><path d="M1 1h16v16" style="fill: none; stroke: var(--teamA); stroke-width: 2.5"/></svg>Territory (border = edge)</span>
+        <span><svg viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="3" style="fill: var(--teamA)"/><text x="9" y="12.5" text-anchor="middle" style="fill: #fff; font: 700 7px sans-serif">HQ</text></svg>HQ (garrison)</span>
+        <span><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" style="fill: var(--teamB); stroke: var(--panel); stroke-width: 1.5"/><text x="9" y="12" text-anchor="middle" style="fill: #fff; font: 600 8px monospace">12</text></svg>Squad (size and number = soldiers)</span>
+        <span><svg viewBox="0 0 18 18"><path d="M2 16 L10 8" style="stroke: var(--teamB); stroke-width: 3; stroke-linecap: round; opacity: .55"/><circle cx="11" cy="7" r="5" style="fill: var(--teamB)"/></svg>Moved this turn</span>
+        <span><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="6" style="fill: var(--ore); stroke: var(--ore-edge); stroke-width: 1.5"/><text x="9" y="12" text-anchor="middle" style="fill: var(--ore-edge); font: 700 8px sans-serif">5</text></svg>Resource-rich (5 gold)</span>
+        <span><svg viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="2" style="fill: none; stroke: var(--teamA); stroke-width: 2; stroke-dasharray: 3 2"/><rect x="2" y="10" width="14" height="6" style="fill: var(--teamA); opacity: .6"/></svg>Being occupied (fill = progress)</span>
+        <span><svg viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="2" style="fill: var(--ruin)"/><path d="M1 9 L9 1 M1 17 L17 1 M9 17 L17 9" style="stroke: var(--board); stroke-width: 2"/></svg>Ruin (neutral, turns blank)</span>
+        <span><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.5" style="fill: none; stroke: var(--bad); stroke-width: 2"/><path d="M5 5 L13 13 M13 5 L5 13" style="stroke: var(--bad); stroke-width: 2.5; stroke-linecap: round"/></svg>Fight this turn</span>
       </div>
 
       <div class="timeline">
@@ -193,7 +233,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
         </div>
         <canvas id="chart" aria-label="Chart over time; click to seek"></canvas>
       </div>
-      <div class="keys">Click a tile to inspect it. Keys: Space play/pause, ← → step one turn, Home / End.</div>
+      <div class="keys">Keys: Space play/pause · ← → one turn · Home / End · Esc closes the info card.</div>
     </section>
 
     <aside class="side">
@@ -201,9 +241,9 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
         <div class="team" id="teamA" style="--tc: var(--teamA)"></div>
         <div class="team" id="teamB" style="--tc: var(--teamB)"></div>
       </div>
-      <div class="panel" id="inspector">
-        <h2>Tile</h2>
-        <p class="hint">Click a tile on the board to see who owns it, what is being occupied and which squads stand there.</p>
+      <div class="panel" id="turnPanel">
+        <h2>This turn</h2>
+        <p class="hint">Play the replay to see what each turn did.</p>
       </div>
       <div class="panel">
         <h2>Match stats</h2>
@@ -222,35 +262,57 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const board = $("board"), chart = $("chart");
+  const board = $("board"), chart = $("chart"), pop = $("pop");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const TOKENS = ["panel", "ink", "muted", "line", "board", "grid", "wall", "ore", "teamA", "teamB", "good", "warn", "bad", "chip"];
+  const TOKENS = ["panel", "ink", "muted", "line", "board", "grid", "wall", "ore", "ore-edge", "ruin", "teamA", "teamB", "good", "warn", "bad", "chip", "shadow"];
+  const DIRS = [[0, 1, "north", "↑"], [1, 1, "north-east", "↗"], [1, 0, "east", "→"], [1, -1, "south-east", "↘"],
+                [0, -1, "south", "↓"], [-1, -1, "south-west", "↙"], [-1, 0, "west", "←"], [-1, 1, "north-west", "↖"]];
   const KEY_EVERY = 40;
-  let C = {}, MONO = "monospace";
-  let R = null, W = 0, H = 0, frames = [], keys = [], rich = null, hqIdx = [0, 0], names = ["A", "B"];
-  let state = null, stateFrame = -1, frame = 0, playing = false, speed = 50, acc = 0, lastT = 0;
-  let selected = null, showDebug = true, metric = "terr", cell = 10, dpr = 1;
+  const ZOOMS = [1, 1.5, 2, 3, 4];
+  let C = {}, MONO = "monospace", DISPLAY = "sans-serif";
+  let R = null, W = 0, H = 0, frames = [], keys = [], rich = null, hqIdx = [0, 0], names = ["A", "B"], ruinRounds = 20;
+  let state = null, stateFrame = -1, frame = 0, playing = false, speed = 25, acc = 0, lastT = 0;
+  let sel = null, showDebug = true, metric = "terr", cell = 10, dpr = 1, zoomIdx = 0;
   let lastInd = new Map();
 
+  // ------------------------------------------------------------------ colors
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
     for (const k of TOKENS) C[k] = cs.getPropertyValue("--" + k).trim();
     MONO = cs.getPropertyValue("--font-mono").trim() || "monospace";
+    DISPLAY = cs.getPropertyValue("--font-display").trim() || "sans-serif";
+    C.fillA = mix(C.teamA, C.board, 0.34); C.fillB = mix(C.teamB, C.board, 0.34);
+  }
+  function rgb(hex) {
+    const h = hex.replace("#", "");
+    const v = h.length === 3 ? h.split("").map((c) => parseInt(c + c, 16)) : [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    return v.some(isNaN) ? [128, 128, 128] : v;
+  }
+  function mix(a, b, t) {
+    const x = rgb(a), y = rgb(b);
+    return `rgb(${x.map((v, i) => Math.round(v * t + y[i] * (1 - t))).join(",")})`;
   }
   const teamColor = (t) => (t ? C.teamB : C.teamA);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmt = (n) => (Math.abs(n) >= 10000 ? (n / 1000).toFixed(0) + "k" : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+  const fmt = (n) => (Math.abs(n) >= 10000 ? Math.round(n / 1000) + "k" : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 
   // ------------------------------------------------------------------ replay state
-  function cloneState(s) {
-    return { tiles: s.tiles.slice(), squads: new Map(s.squads), occ: new Map(s.occ) };
-  }
+  // squads: id -> [team, x, y, soldiers, dir]; occ: idx -> {team, rounds, total, start}; ruins: idx -> rounds left
+  function cloneState(s) { return { tiles: s.tiles.slice(), squads: new Map(s.squads), occ: new Map(s.occ), ruins: new Map(s.ruins) }; }
   function applyFrame(s, f, turn) {
-    for (const [x, y, v] of f.tiles || []) s.tiles[y * W + x] = v;
+    for (const [x, y, v] of f.tiles || []) {
+      const i = y * W + x;
+      if (v === 3 && s.tiles[i] !== 3) s.ruins.set(i, ruinRounds);
+      if (v !== 3) s.ruins.delete(i);
+      s.tiles[i] = v;
+    }
     for (const id of f.gone || []) s.squads.delete(id);
-    for (const [id, t, x, y, n] of f.sq || []) s.squads.set(id, [t, x, y, n]);
-    for (const [x, y] of f.occ_end || []) s.occ.delete(y * W + x);
-    for (const [x, y, t, rounds, total] of f.occ || []) s.occ.set(y * W + x, { team: t, rounds, total, start: turn });
+    for (const [id, t, x, y, n, d] of f.sq || []) s.squads.set(id, [t, x, y, n, d === undefined ? -1 : d]);
+    for (const ev of f.occ || []) {
+      if (ev[0] === "start") s.occ.set(ev[2] * W + ev[1], { team: ev[3], rounds: ev[4], total: ev[5], start: turn });
+      else s.occ.delete(ev[2] * W + ev[1]);
+    }
+    if (f.team === 1) for (const [i, left] of s.ruins) if (!s.occ.has(i)) s.ruins.set(i, left - 1);
   }
   function stateAt(fr) {
     if (state && fr === stateFrame) return state;
@@ -261,19 +323,20 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     stateFrame = fr;
     return state;
   }
+  const occProgress = (o) => Math.min(o.rounds, Math.floor((frame - o.start) / 2) + 1);
 
   function load(replay) {
     if (!replay || replay.format !== "arena-replay" || replay.game !== "frontier") throw new Error("This file is not a Frontier replay.");
     R = replay; W = R.map.width; H = R.map.height;
     names = R.teams.map((t) => t.name);
+    ruinRounds = (R.rules && R.rules.ruin_rounds) || 20;
     rich = new Uint8Array(W * H);
     for (const [x, y] of R.map.rich) rich[y * W + x] = 1;
     hqIdx = R.map.hq.map(([x, y]) => y * W + x);
-    const init = R.initial;
-    const terr0 = [0, 0];
+    const init = R.initial, terr0 = [0, 0];
     for (const [, , v] of init.tiles) if (v === 1 || v === 2) terr0[v - 1]++;
     frames = [{ team: -1, gold: init.gold, garrison: init.garrison, terr: terr0, sold: [0, 0], squads: [0, 0], cpu: [0, 0] }, ...R.frames];
-    const s = { tiles: new Int8Array(W * H), squads: new Map(), occ: new Map() };
+    const s = { tiles: new Int8Array(W * H), squads: new Map(), occ: new Map(), ruins: new Map() };
     for (const [x, y, v] of init.tiles) s.tiles[y * W + x] = v;
     for (const [x, y] of R.map.walls) s.tiles[y * W + x] = 4;
     keys = [cloneState(s)];
@@ -286,11 +349,11 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
       }
       if (i % KEY_EVERY === 0) keys.push(cloneState(s));
     }
-    state = null; stateFrame = -1;
+    state = null; stateFrame = -1; sel = null;
     renderStatic();
     $("empty").hidden = true; board.hidden = false;
     $("slider").max = String(frames.length - 1);
-    selected = null;
+    zoomIdx = window.innerWidth < 600 ? 1 : 0;
     resize();
     seek(0);
     setPlaying(!reduceMotion);
@@ -305,7 +368,6 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     if (res.winner === null || res.winner === undefined) pill.innerHTML = `No winner · ${esc(res.reason)}`;
     else pill.innerHTML = `<span class="sw" style="background: var(--team${"AB"[res.winner]})"></span><strong>${esc(res.winner_name)}</strong> won · ${esc(res.reason)}`;
     $("legA").textContent = names[0]; $("legB").textContent = names[1];
-
     const st = R.stats;
     const rows = [
       ["Final territory", (s) => s.final_territory], ["Peak territory", (s) => s.max_territory],
@@ -319,9 +381,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     $("stats").innerHTML = `<thead><tr><th></th><th class="tA">${esc(names[0])}</th><th class="tB">${esc(names[1])}</th></tr></thead><tbody>` +
       rows.map(([label, fn]) => `<tr><td>${label}</td><td>${fn(st[0]).toLocaleString()}</td><td>${fn(st[1]).toLocaleString()}</td></tr>`).join("") + "</tbody>";
 
-    const list = $("problems");
-    const errs = R.errors || [];
-    const loadErrs = [];
+    const list = $("problems"), errs = R.errors || [], loadErrs = [];
     (R.load_errors || []).forEach((errsT, t) => errsT.forEach((e) => loadErrs.push({ team: t, message: e })));
     $("problemsTitle").textContent = errs.length || loadErrs.length ? `Problems (${errs.length + loadErrs.length} recorded)` : "Problems";
     list.innerHTML = "";
@@ -333,14 +393,13 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     }
     for (const e of errs) {
       const li = document.createElement("li");
-      const kind = e.kind.split("-")[1];
-      li.innerHTML = `<button type="button"><span class="where"><span class="kind ${kind}">${esc(e.kind)}</span><span>Round ${e.round}</span><span class="t${"AB"[e.team]}">${esc(names[e.team])}</span><span>${esc(e.type)} #${e.agent}</span></span><pre>${esc(e.message)}</pre></button>`;
+      li.innerHTML = `<button type="button"><span class="where"><span class="kind ${esc(e.kind.split("-")[1])}">${esc(e.kind)}</span><span>Round ${e.round}</span><span class="t${"AB"[e.team]}">${esc(names[e.team])}</span><span>${esc(e.type)} #${e.agent}</span></span><pre>${esc(e.message)}</pre></button>`;
       li.firstChild.addEventListener("click", () => {
         setPlaying(false);
         seek(Math.min(e.turn, frames.length - 1));
-        const sq = stateAt(frame).squads.get(e.agent);
-        selected = sq ? sq[2] * W + sq[1] : e.type === "HQ" ? hqIdx[e.team] : selected;
+        sel = e.type === "HQ" ? { type: "hq", team: e.team } : stateAt(frame).squads.has(e.agent) ? { type: "squad", id: e.agent } : null;
         sync();
+        $("boardWrap").scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
       });
       list.appendChild(li);
     }
@@ -349,19 +408,40 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   // ------------------------------------------------------------------ layout
   function resize() {
     if (!R) return;
-    const avail = $("boardWrap").clientWidth - 26;
-    const maxH = Math.max(300, window.innerHeight - 300);
-    cell = Math.max(5, Math.min(Math.floor(avail / W), Math.floor(maxH / H), 20));
+    const wrap = $("boardWrap");
+    const fit = Math.max(6, Math.min(Math.floor((wrap.clientWidth - 22) / W), Math.floor((window.innerHeight * 0.8 - 22) / H)));
+    cell = Math.max(6, Math.min(48, Math.round(fit * ZOOMS[zoomIdx])));
     dpr = window.devicePixelRatio || 1;
+    $("boardInner").style.width = cell * W + "px";
     board.style.width = cell * W + "px"; board.style.height = cell * H + "px";
     board.width = Math.round(cell * W * dpr); board.height = Math.round(cell * H * dpr);
     chart.width = Math.round(chart.clientWidth * dpr); chart.height = Math.round(96 * dpr);
     draw();
   }
+  function setZoom(i, focusIdx) {
+    const wrap = $("boardWrap");
+    const before = cell;
+    const cxv = wrap.scrollLeft + wrap.clientWidth / 2, cyv = wrap.scrollTop + wrap.clientHeight / 2;
+    zoomIdx = Math.max(0, Math.min(ZOOMS.length - 1, i));
+    resize();
+    const k = cell / before;
+    if (focusIdx !== undefined) {
+      const x = focusIdx % W, y = (focusIdx / W) | 0;
+      wrap.scrollLeft = x * cell - wrap.clientWidth / 2; wrap.scrollTop = (H - 1 - y) * cell - wrap.clientHeight / 2;
+    } else {
+      wrap.scrollLeft = cxv * k - wrap.clientWidth / 2; wrap.scrollTop = cyv * k - wrap.clientHeight / 2;
+    }
+    renderPop();
+  }
 
   // ------------------------------------------------------------------ drawing
   const px = (x) => x * cell, py = (y) => (H - 1 - y) * cell;
   const cx = (x) => x * cell + cell / 2, cy = (y) => (H - 1 - y) * cell + cell / 2;
+
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
 
   function draw() {
     if (!R) return;
@@ -370,24 +450,20 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = C.board; g.fillRect(0, 0, W * cell, H * cell);
 
-    // tiles
+    // 1. tiles: territory fill, ruins, walls
     for (let i = 0; i < W * H; i++) {
       const v = s.tiles[i];
       if (!v) continue;
-      const x = i % W, y = (i / W) | 0;
-      if (v === 1 || v === 2) { g.globalAlpha = 0.38; g.fillStyle = teamColor(v - 1); g.fillRect(px(x), py(y), cell, cell); g.globalAlpha = 1; }
+      const X = px(i % W), Y = py((i / W) | 0);
+      if (v === 1 || v === 2) { g.fillStyle = v === 1 ? C.fillA : C.fillB; g.fillRect(X, Y, cell, cell); }
       else if (v === 3) {
-        g.fillStyle = C.chip; g.fillRect(px(x), py(y), cell, cell);
-        g.strokeStyle = C.muted; g.lineWidth = 1; g.beginPath();
-        g.moveTo(px(x), py(y) + cell); g.lineTo(px(x) + cell, py(y)); g.stroke();
-      } else if (v === 4) { g.fillStyle = C.wall; g.fillRect(px(x), py(y), cell, cell); }
-    }
-    // resource-rich tiles
-    g.fillStyle = C.ore;
-    for (let i = 0; i < W * H; i++) {
-      if (!rich[i]) continue;
-      const X = cx(i % W), Y = cy((i / W) | 0), r = Math.max(1.5, cell * 0.2);
-      g.beginPath(); g.moveTo(X, Y - r); g.lineTo(X + r, Y); g.lineTo(X, Y + r); g.lineTo(X - r, Y); g.closePath(); g.fill();
+        g.fillStyle = C.ruin; g.fillRect(X, Y, cell, cell);
+        g.save(); g.beginPath(); g.rect(X, Y, cell, cell); g.clip();
+        g.strokeStyle = C.board; g.lineWidth = Math.max(1, cell * 0.12);
+        g.beginPath();
+        for (let k = -1; k <= 2; k++) { g.moveTo(X + k * cell / 2 - cell, Y + cell); g.lineTo(X + k * cell / 2 + cell * 0.0, Y); }
+        g.stroke(); g.restore();
+      } else if (v === 4) { g.fillStyle = C.wall; g.fillRect(X, Y, cell, cell); }
     }
     if (cell >= 9) {
       g.strokeStyle = C.grid; g.lineWidth = 1; g.beginPath();
@@ -395,62 +471,119 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
       for (let y = 1; y < H; y++) { g.moveTo(0, y * cell + 0.5); g.lineTo(W * cell, y * cell + 0.5); }
       g.stroke();
     }
-    // occupations in progress
+    // 2. territory borders: a bold line wherever a team's territory ends
+    const bw = Math.max(1.5, cell * 0.14);
+    for (const code of [1, 2]) {
+      g.strokeStyle = teamColor(code - 1); g.lineWidth = bw; g.lineCap = "square"; g.beginPath();
+      for (let i = 0; i < W * H; i++) {
+        if (s.tiles[i] !== code) continue;
+        const x = i % W, y = (i / W) | 0, X = px(x), Y = py(y), o = bw / 2;
+        if (y === H - 1 || s.tiles[i + W] !== code) { g.moveTo(X, Y + o); g.lineTo(X + cell, Y + o); }
+        if (y === 0 || s.tiles[i - W] !== code) { g.moveTo(X, Y + cell - o); g.lineTo(X + cell, Y + cell - o); }
+        if (x === 0 || s.tiles[i - 1] !== code) { g.moveTo(X + o, Y); g.lineTo(X + o, Y + cell); }
+        if (x === W - 1 || s.tiles[i + 1] !== code) { g.moveTo(X + cell - o, Y); g.lineTo(X + cell - o, Y + cell); }
+      }
+      g.stroke();
+    }
+    // 3. ruin countdown (zoomed in)
+    if (cell >= 16) {
+      g.font = `600 ${Math.round(cell * 0.42)}px ${MONO}`; g.textAlign = "center"; g.textBaseline = "middle";
+      for (const [i, left] of s.ruins) {
+        if (s.occ.has(i)) continue;
+        g.fillStyle = C.ink; g.fillText(String(left), cx(i % W), cy((i / W) | 0) + 1);
+      }
+    }
+    // 4. resource-rich tiles: gold coins
+    const cr = Math.max(2, cell * 0.3);
+    for (let i = 0; i < W * H; i++) {
+      if (!rich[i]) continue;
+      const X = cx(i % W), Y = cy((i / W) | 0);
+      g.fillStyle = C.ore; g.strokeStyle = C["ore-edge"]; g.lineWidth = Math.max(1, cell * 0.07);
+      g.beginPath(); g.arc(X, Y, cr, 0, Math.PI * 2); g.fill(); g.stroke();
+      if (cell >= 18) { g.fillStyle = C["ore-edge"]; g.font = `700 ${Math.round(cell * 0.34)}px ${DISPLAY}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("5", X, Y + 1); }
+    }
+    // 5. occupations in progress: dashed outline and a fill that rises with progress
     for (const [i, o] of s.occ) {
-      const x = i % W, y = (i / W) | 0;
-      const ticks = Math.min(o.rounds, Math.floor((frame - o.start) / 2) + 1);
-      g.strokeStyle = teamColor(o.team); g.lineWidth = Math.max(1, cell * 0.12);
-      g.strokeRect(px(x) + 1, py(y) + 1, cell - 2, cell - 2);
-      g.fillStyle = teamColor(o.team);
-      g.fillRect(px(x) + 1, py(y) + cell - Math.max(2, cell * 0.18), (cell - 2) * (ticks / o.rounds), Math.max(2, cell * 0.18) - 1);
+      const x = i % W, y = (i / W) | 0, X = px(x), Y = py(y), done = occProgress(o) / o.rounds;
+      g.globalAlpha = 0.6; g.fillStyle = teamColor(o.team);
+      g.fillRect(X + 1, Y + 1 + (cell - 2) * (1 - done), cell - 2, (cell - 2) * done);
+      g.globalAlpha = 1; g.setLineDash([Math.max(2, cell * 0.2), Math.max(1.5, cell * 0.12)]);
+      g.strokeStyle = teamColor(o.team); g.lineWidth = Math.max(1.5, cell * 0.12);
+      g.strokeRect(X + 1, Y + 1, cell - 2, cell - 2); g.setLineDash([]);
     }
-    // HQs
+    // 6. HQs
     for (const t of [0, 1]) {
-      const i = hqIdx[t], x = i % W, y = (i / W) | 0;
-      g.fillStyle = teamColor(t);
-      g.fillRect(px(x) + 1, py(y) + 1, cell - 2, cell - 2);
-      g.strokeStyle = C.panel; g.lineWidth = Math.max(1, cell * 0.12);
-      g.strokeRect(px(x) + cell * 0.28, py(y) + cell * 0.28, cell * 0.44, cell * 0.44);
+      const i = hqIdx[t], X = cx(i % W), Y = cy((i / W) | 0), sz = cell * 1.5, r = cell * 0.3;
+      g.save(); g.shadowColor = C.shadow; g.shadowBlur = cell * 0.4;
+      g.fillStyle = teamColor(t); roundRect(g, X - sz / 2, Y - sz / 2, sz, sz, r); g.fill(); g.restore();
+      g.strokeStyle = C.panel; g.lineWidth = Math.max(1.5, cell * 0.1); roundRect(g, X - sz / 2, Y - sz / 2, sz, sz, r); g.stroke();
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+      if (cell >= 10) {
+        g.font = `700 ${Math.round(cell * 0.5)}px ${DISPLAY}`; g.fillText("HQ", X, Y - cell * 0.12);
+        g.font = `600 ${Math.round(cell * 0.36)}px ${MONO}`; g.fillText(String(f.garrison[t]), X, Y + cell * 0.38);
+      }
     }
-    // squads (both teams on one tile means a fight: draw them side by side)
+    // 7. squads (both teams on one tile = a fight: drawn side by side)
     const byCell = new Map();
-    for (const [id, sq] of s.squads) {
-      const i = sq[2] * W + sq[1];
+    for (const [id, q] of s.squads) {
+      const i = q[2] * W + q[1];
       if (!byCell.has(i)) byCell.set(i, []);
-      byCell.get(i).push([id, ...sq]);
+      byCell.get(i).push([id, ...q]);
     }
+    const moved = new Set((f.sq || []).filter((q) => q[1] === f.team && q[5] >= 0).map((q) => q[0]));
     for (const [i, list] of byCell) {
       const x = i % W, y = (i / W) | 0;
-      list.forEach(([id, t, , , n]) => {
-        const off = list.length > 1 ? (t ? 0.18 : -0.18) * cell : 0;
-        const r = Math.min(cell * 0.48, cell * (0.2 + 0.09 * Math.log10(n + 1)));
-        g.fillStyle = teamColor(t); g.strokeStyle = C.panel; g.lineWidth = Math.max(1, cell * 0.08);
-        g.beginPath(); g.arc(cx(x) + off, cy(y), Math.max(2, r), 0, Math.PI * 2); g.fill(); g.stroke();
-        if (cell >= 15 && list.length === 1) {
-          g.fillStyle = C.panel; g.font = `600 ${Math.round(cell * 0.36)}px ${MONO}`;
-          g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(fmt(n), cx(x), cy(y) + 1);
+      for (const [id, t, , , n, d] of list) {
+        const onHq = hqIdx.includes(i);
+        const off = list.length > 1 ? (t ? 0.2 : -0.2) * cell : 0;
+        const X = cx(x) + off + (onHq ? cell * 0.5 : 0), Y = cy(y) + (onHq ? cell * 0.5 : 0);
+        let r = Math.max(3, Math.min(cell * 0.5, cell * (0.26 + 0.08 * Math.log10(n + 1))));
+        if (onHq) r = Math.min(r, cell * 0.4);
+        if (moved.has(id) && d >= 0) {  // tail pointing back where it came from
+          g.strokeStyle = teamColor(t); g.globalAlpha = 0.5; g.lineWidth = Math.max(2, r * 0.7); g.lineCap = "round";
+          g.beginPath(); g.moveTo(X, Y); g.lineTo(X - DIRS[d][0] * cell * 0.9, Y + DIRS[d][1] * cell * 0.9); g.stroke(); g.globalAlpha = 1;
         }
-      });
+        g.save(); g.shadowColor = C.shadow; g.shadowBlur = cell * 0.25;
+        g.fillStyle = teamColor(t); g.beginPath(); g.arc(X, Y, r, 0, Math.PI * 2); g.fill(); g.restore();
+        g.strokeStyle = C.panel; g.lineWidth = Math.max(1, cell * 0.08); g.beginPath(); g.arc(X, Y, r, 0, Math.PI * 2); g.stroke();
+        if (cell >= 11) {
+          const label = fmt(n);
+          g.fillStyle = "#fff"; g.font = `600 ${Math.round(Math.min(r * 1.05, cell * (label.length > 3 ? 0.3 : 0.38)))}px ${MONO}`;
+          g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(label, X, Y + 1);
+        }
+      }
     }
-    // fights this turn
-    for (const [x, y] of f.fights || []) {
-      g.strokeStyle = C.bad; g.lineWidth = Math.max(1.5, cell * 0.12);
-      g.beginPath(); g.arc(cx(x), cy(y), cell * 0.62, 0, Math.PI * 2); g.stroke();
+    // 8. fights this turn
+    for (const [x, y, la, lb] of f.fights || []) {
+      const X = cx(x), Y = cy(y), k = cell * 0.62;
+      g.strokeStyle = C.bad; g.lineWidth = Math.max(2, cell * 0.12);
+      g.beginPath(); g.arc(X, Y, k, 0, Math.PI * 2); g.stroke();
+      g.lineCap = "round"; g.beginPath(); g.moveTo(X - k * 1.1, Y - k * 1.1); g.lineTo(X - k * 0.75, Y - k * 0.75);
+      g.moveTo(X + k * 1.1, Y - k * 1.1); g.lineTo(X + k * 0.75, Y - k * 0.75); g.stroke();
+      if (cell >= 12) {
+        g.font = `700 ${Math.round(cell * 0.4)}px ${MONO}`; g.textBaseline = "bottom";
+        g.textAlign = "right"; g.fillStyle = C.teamA; g.fillText(`−${la}`, X - 2, Y - k);
+        g.textAlign = "left"; g.fillStyle = C.teamB; g.fillText(`−${lb}`, X + 2, Y - k);
+      }
     }
-    // bots' debug drawing
+    // 9. bots' own debug drawing
     if (showDebug) {
-      g.lineWidth = Math.max(1, cell * 0.08); g.globalAlpha = 0.5;
+      g.lineWidth = Math.max(1, cell * 0.08); g.globalAlpha = 0.45;
       for (const [, x1, y1, x2, y2, col] of f.lines || []) { g.strokeStyle = col; g.beginPath(); g.moveTo(cx(x1), cy(y1)); g.lineTo(cx(x2), cy(y2)); g.stroke(); }
       g.globalAlpha = 0.9;
-      for (const [, x, y, col] of f.dots || []) { g.fillStyle = col; g.beginPath(); g.arc(cx(x), cy(y), Math.max(1.5, cell * 0.15), 0, Math.PI * 2); g.fill(); }
+      for (const [, x, y, col] of f.dots || []) { g.fillStyle = col; g.beginPath(); g.arc(cx(x), cy(y), Math.max(1.5, cell * 0.14), 0, Math.PI * 2); g.fill(); }
       g.globalAlpha = 1;
     }
-    if (selected !== null) {
-      const x = selected % W, y = (selected / W) | 0;
-      g.setLineDash([3, 3]); g.strokeStyle = C.muted; g.lineWidth = 1;
-      g.strokeRect(px(x - 2), py(y + 2), cell * 5, cell * 5);
-      g.setLineDash([]); g.strokeStyle = C.ink; g.lineWidth = 2;
-      g.strokeRect(px(x), py(y), cell, cell);
+    // 10. selection: highlight and the squad's 5x5 view
+    const si = selIdx();
+    if (si !== null) {
+      const x = si % W, y = (si / W) | 0;
+      if (sel.type === "squad") {
+        g.setLineDash([4, 3]); g.strokeStyle = C.ink; g.lineWidth = 1.5;
+        g.strokeRect(px(x - 2), py(y + 2), cell * 5, cell * 5); g.setLineDash([]);
+      }
+      g.strokeStyle = C.ink; g.lineWidth = 2.5;
+      g.strokeRect(px(x) - 1, py(y) - 1, cell + 2, cell + 2);
     }
     drawChart();
   }
@@ -460,7 +593,6 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     for (const m of [1, 2, 5, 10]) if (m * p10 >= v) return m * p10;
     return 10 * p10;
   }
-
   function drawChart() {
     const g = chart.getContext("2d");
     const w = chart.width / dpr, h = chart.height / dpr;
@@ -491,19 +623,13 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     g.strokeStyle = C.ink; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.round(X(frame)) + 0.5, padT); g.lineTo(Math.round(X(frame)) + 0.5, h - padB); g.stroke();
   }
 
-  // ------------------------------------------------------------------ panels
-  function teamCard(t) {
-    const f = frames[frame];
-    const win = R.result.winner === t && frame === frames.length - 1;
-    $(t ? "teamB" : "teamA").innerHTML =
-      `<div class="name"><span>${esc(names[t])}</span><span class="side-tag">${win ? '<span class="win-tag">winner</span>' : "team " + "AB"[t]}</span></div>
-       <div class="kv"><span>Territory</span><span>${f.terr[t].toLocaleString()}</span>
-       <span>Gold</span><span>${f.gold[t].toLocaleString()}</span>
-       <span>Soldiers</span><span>${f.sold[t].toLocaleString()}</span>
-       <span>Squads</span><span>${f.squads[t]}</span>
-       <span>HQ garrison</span><span>${f.garrison[t]}</span></div>`;
+  // ------------------------------------------------------------------ selection and info card
+  function selIdx() {
+    if (!sel) return null;
+    if (sel.type === "squad") { const q = stateAt(frame).squads.get(sel.id); return q ? q[2] * W + q[1] : sel.lastIdx ?? null; }
+    if (sel.type === "hq") return hqIdx[sel.team];
+    return sel.idx;
   }
-
   function indicatorFor(id) {
     const list = lastInd.get(id);
     if (!list) return null;
@@ -511,47 +637,125 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     for (const [i, text] of list) { if (i > frame) break; best = [i, text]; }
     return best && frame - best[0] <= 2 ? best[1] : null;
   }
-
-  function inspector() {
-    const el = $("inspector");
-    if (selected === null) {
-      el.innerHTML = `<h2>Tile</h2><p class="hint">Click a tile on the board to see who owns it, what is being occupied and which squads stand there.</p>`;
-      return;
-    }
-    const s = stateAt(frame), x = selected % W, y = (selected / W) | 0, v = s.tiles[selected];
-    const owner = v === 1 || v === 2 ? `<span class="t${"AB"[v - 1]}">${esc(names[v - 1])}</span>` : v === 3 ? "ruin" : v === 4 ? "wall" : "blank";
-    const hq = hqIdx.indexOf(selected);
-    const o = s.occ.get(selected);
-    let occ = "";
-    if (o) {
-      const ticks = Math.min(o.rounds, Math.floor((frame - o.start) / 2) + 1);
-      occ = `<span>Occupation</span><span class="t${"AB"[o.team]}">${ticks}/${o.rounds} rounds · ${o.total} gold</span>`;
-    }
+  function tileText(s, i) {
+    const v = s.tiles[i];
+    if (v === 1 || v === 2) return `<span class="t${"AB"[v - 1]}">${esc(names[v - 1])}'s territory</span>`;
+    if (v === 3) return `ruin · blank in ${s.ruins.get(i) ?? "?"} rounds${s.occ.has(i) ? " (paused)" : ""}`;
+    if (v === 4) return "wall";
+    return "blank";
+  }
+  function fightAt(i) {
+    const f = frames[frame];
+    return (f.fights || []).find(([x, y]) => y * W + x === i);
+  }
+  function occRow(o) {
+    const p = occProgress(o);
+    return `<dt>Occupying</dt><dd>${p}/${o.rounds} rounds · ${o.total} gold</dd>
+      <div class="bar" style="grid-column: 1 / -1; --pc: var(--team${"AB"[o.team]})"><div style="width: ${(100 * p) / o.rounds}%"></div></div>`;
+  }
+  function squadBlock(s, id, q, i) {
+    const [t, , , n, d] = q;
+    const note = indicatorFor(id);
+    const o = s.occ.get(i);
+    const fight = fightAt(i);
+    return `<dl><dt>Team</dt><dd class="t${"AB"[t]}">${esc(names[t])}</dd>
+      <dt>Soldiers</dt><dd>${n.toLocaleString()}</dd>
+      <dt>Last move</dt><dd>${d >= 0 ? DIRS[d][3] + " " + DIRS[d][2] : "stayed"}</dd>
+      <dt>Upkeep</dt><dd>${(n / 10).toFixed(1)} gold/round</dd>
+      ${o && o.team === t ? occRow(o) : ""}</dl>
+      ${fight ? `<div class="fight">Fighting: ${esc(names[0])} −${fight[2]}, ${esc(names[1])} −${fight[3]} this turn</div>` : ""}
+      ${note ? `<div class="note">Bot note: ${esc(note)}</div>` : ""}`;
+  }
+  function renderPop() {
+    const i = selIdx();
+    if (!R || i === null) { pop.hidden = true; return; }
+    const s = stateAt(frame), x = i % W, y = (i / W) | 0;
+    let color = "var(--muted)", head = "", sub = "", body = "";
     const here = [...s.squads].filter(([, q]) => q[1] === x && q[2] === y);
-    const rows = here.map(([id, q]) => {
-      const ind = indicatorFor(id);
-      return `<div class="squad-row"><span class="t${"AB"[q[0]]}">Squad #${id}</span><span>${q[3].toLocaleString()} soldiers</span></div>` +
-        (ind ? `<div class="indicator">${esc(ind)}</div>` : "");
-    }).join("");
-    const hqInd = hq >= 0 ? indicatorFor(R.initial.hq_ids[hq]) : null;
-    el.innerHTML = `<h2>Tile (${x}, ${y})</h2>
-      <div class="kv"><span>Owner</span><span>${owner}</span>
-      <span>Resource-rich</span><span>${rich[selected] ? "yes (5 gold/round)" : "no"}</span>
-      ${hq >= 0 ? `<span>HQ garrison</span><span>${frames[frame].garrison[hq]}</span>` : ""}${occ}</div>
-      ${hqInd ? `<div class="indicator">HQ: ${esc(hqInd)}</div>` : ""}
-      <div class="squads">${rows || '<p class="hint">No squads on this tile.</p>'}</div>`;
+    if (sel.type === "squad") {
+      const q = s.squads.get(sel.id);
+      if (!q) {
+        head = `Squad #${sel.id}`; sub = `gone in round ${Math.ceil(frame / 2)}`;
+        body = `<p class="hint">This squad no longer exists: it was destroyed, disbanded or merged into a bigger squad.</p>`;
+      } else {
+        sel.lastIdx = i; color = `var(--team${"AB"[q[0]]})`;
+        head = `Squad #${sel.id}`; sub = `at (${x}, ${y}) · on ${tileText(s, i)}`;
+        body = squadBlock(s, sel.id, q, i);
+        const foe = here.find(([id, e]) => e[0] !== q[0]);
+        if (foe) body += `<div class="hint">Enemy here: <button class="linkbtn" data-squad="${foe[0]}">squad #${foe[0]} (${foe[1][3]})</button></div>`;
+      }
+    } else if (sel.type === "hq") {
+      const t = sel.team; color = `var(--team${"AB"[t]})`;
+      head = `HQ · ${esc(names[t])}`; sub = `at (${x}, ${y}) · loses the game if captured`;
+      const fight = fightAt(i), note = indicatorFor(R.initial.hq_ids[t]);
+      body = `<dl><dt>Garrison</dt><dd>${frames[frame].garrison[t]} soldiers</dd><dt>Defense</dt><dd>1 defender = 5 attackers</dd>
+        <dt>Gold</dt><dd>${frames[frame].gold[t].toLocaleString()}</dd><dt>Squads</dt><dd>${frames[frame].squads[t]}</dd></dl>
+        ${fight ? `<div class="fight">Under attack: ${esc(names[0])} −${fight[2]}, ${esc(names[1])} −${fight[3]} this turn</div>` : ""}
+        ${here.map(([id, q]) => `<div class="hint">On the tile: <button class="linkbtn" data-squad="${id}">squad #${id} (${q[3]})</button></div>`).join("")}
+        ${note ? `<div class="note">Bot note: ${esc(note)}</div>` : ""}`;
+    } else {
+      head = `Tile (${x}, ${y})`; sub = tileText(s, i);
+      const o = s.occ.get(i);
+      const fight = fightAt(i);
+      body = `<dl><dt>Resource-rich</dt><dd>${rich[i] ? "yes · 5 gold/round" : "no · 1 gold/round"}</dd>${o ? occRow(o) : ""}</dl>
+        ${fight ? `<div class="fight">Fight: ${esc(names[0])} −${fight[2]}, ${esc(names[1])} −${fight[3]} this turn</div>` : ""}
+        ${here.length ? here.map(([id, q]) => `<div class="hint"><button class="linkbtn" data-squad="${id}">Squad #${id}</button> · <span class="t${"AB"[q[0]]}">${esc(names[q[0]])}</span> · ${q[3]} soldiers</div>`).join("") : `<p class="hint">No squads here.</p>`}`;
+    }
+    pop.style.setProperty("--pc", color);
+    pop.innerHTML = `<div class="pop-head"><strong>${head}</strong><button class="x" type="button" aria-label="Close">×</button></div><div class="pop-sub">${sub}</div>${body}`;
+    pop.hidden = false;
+    const pw = pop.offsetWidth, ph = pop.offsetHeight, bw = cell * W, bh = cell * H;
+    let left = px(x) + cell + 10, top = py(y) - ph / 2 + cell / 2;
+    if (left + pw > bw) left = px(x) - pw - 10;
+    if (left < 0) left = Math.min(bw - pw, Math.max(0, px(x) - pw / 2));
+    top = Math.max(0, Math.min(bh - ph, top));
+    if (left < px(x) + cell && left + pw > px(x) && top < py(y) + cell && top + ph > py(y)) top = py(y) + cell + 8 + ph > bh ? py(y) - ph - 8 : py(y) + cell + 8;
+    pop.style.left = left + "px"; pop.style.top = Math.max(0, top) + "px";
+    pop.querySelector(".x").addEventListener("click", () => { sel = null; renderPop(); draw(); });
+    for (const b of pop.querySelectorAll("[data-squad]")) b.addEventListener("click", () => { sel = { type: "squad", id: Number(b.dataset.squad) }; renderPop(); draw(); });
+  }
+
+  // ------------------------------------------------------------------ panels
+  function teamCard(t) {
+    const f = frames[frame];
+    const win = R.result.winner === t && frame === frames.length - 1;
+    $(t ? "teamB" : "teamA").innerHTML =
+      `<div class="name"><span>${esc(names[t])}</span><span class="side-tag">${win ? '<span class="win-tag">winner</span>' : (t ? "B · moves 2nd" : "A · moves 1st")}</span></div>
+       <div class="big">${f.terr[t].toLocaleString()}<small>tiles</small></div>
+       <div class="kv"><span>Gold</span><span class="${f.gold[t] < 0 ? "neg" : ""}">${f.gold[t].toLocaleString()}</span>
+       <span>Soldiers</span><span>${f.sold[t].toLocaleString()}</span>
+       <span>Squads</span><span>${f.squads[t]}</span>
+       <span>HQ garrison</span><span>${f.garrison[t]}</span></div>`;
+  }
+  function turnPanel() {
+    const el = $("turnPanel"), f = frames[frame];
+    if (frame === 0) { el.innerHTML = `<h2>This turn</h2><p class="hint">Start of the match: each side has its HQ, 8 camp tiles and 1000 gold.</p>`; return; }
+    const t = f.team, sq = f.sq || [], occ = f.occ || [];
+    const count = (pred) => occ.filter(pred).length;
+    const chips = [
+      [sq.filter((q) => q[1] === t && q[5] >= 0).length, "squads moved"],
+      [count((e) => e[0] === "start"), "occupations started"],
+      [count((e) => e[0] === "end" && e[3] === "done"), "tiles taken"],
+      [count((e) => e[0] === "end" && e[3] !== "done"), "occupations stopped"],
+      [(f.tiles || []).filter((c) => c[2] === 3).length, "tiles razed"],
+      [(f.gone || []).length, "squads gone"],
+    ].filter(([n]) => n > 0);
+    const fights = f.fights || [];
+    el.innerHTML = `<h2>This turn</h2>
+      <div class="turn-head">Round ${Math.ceil(frame / 2)} · <span class="t${"AB"[t]}">${esc(names[t])}</span> moved</div>
+      <div class="chips">${chips.length ? chips.map(([n, l]) => `<span class="chip">${n} ${l}</span>`).join("") : '<span class="hint">Nothing changed.</span>'}</div>
+      ${fights.length ? `<ul class="fights">${fights.map(([x, y, la, lb]) => `<li><button type="button" data-idx="${y * W + x}"><span>Fight at (${x}, ${y})</span><span><span class="tA">−${la}</span> / <span class="tB">−${lb}</span></span></button></li>`).join("")}</ul>` : ""}`;
+    for (const b of el.querySelectorAll("[data-idx]")) b.addEventListener("click", () => { setPlaying(false); selectAt(Number(b.dataset.idx)); });
   }
 
   // ------------------------------------------------------------------ playback
   function panels() {
     $("slider").value = String(frame);
-    const f = frames[frame];
-    $("roundLabel").textContent = frame === 0 ? "Start" : `Round ${Math.ceil(frame / 2)} · ${"AB"[f.team]} moved`;
-    teamCard(0); teamCard(1); inspector();
+    $("roundLabel").textContent = frame === 0 ? "Start" : `Round ${Math.ceil(frame / 2)} · ${"AB"[frames[frame].team]} moved`;
+    teamCard(0); teamCard(1); turnPanel();
   }
   function seek(fr) { frame = Math.max(0, Math.min(frames.length - 1, fr)); sync(); }
-  function sync() { panels(); draw(); }
-
+  function sync() { panels(); draw(); renderPop(); }
   function setPlaying(on) {
     playing = on && R !== null;
     if (playing && frame >= frames.length - 1) frame = 0;
@@ -583,6 +787,9 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
   $("slider").addEventListener("input", (ev) => seek(parseInt(ev.target.value, 10)));
   $("speed").addEventListener("change", (ev) => { speed = parseFloat(ev.target.value); });
   $("debug").addEventListener("change", (ev) => { showDebug = ev.target.checked; draw(); });
+  $("zoomIn").addEventListener("click", () => setZoom(zoomIdx + 1, selIdx() ?? undefined));
+  $("zoomOut").addEventListener("click", () => setZoom(zoomIdx - 1));
+  $("zoomFit").addEventListener("click", () => setZoom(0));
   for (const b of document.querySelectorAll("[data-metric]")) {
     b.addEventListener("click", () => {
       metric = b.dataset.metric;
@@ -596,14 +803,35 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     const x = Math.floor((ev.clientX - rect.left) / cell), y = H - 1 - Math.floor((ev.clientY - rect.top) / cell);
     return x >= 0 && x < W && y >= 0 && y < H ? y * W + x : null;
   }
-  board.addEventListener("click", (ev) => { const i = cellAt(ev); selected = i === selected ? null : i; inspector(); draw(); });
-  board.addEventListener("mousemove", (ev) => {
-    const i = cellAt(ev), hv = $("hover");
-    if (i === null) { hv.hidden = true; return; }
-    hv.hidden = false;
-    hv.textContent = `(${i % W}, ${(i / W) | 0})${rich[i] ? " rich" : ""}`;
+  function selectAt(i) {
+    const s = stateAt(frame), x = i % W, y = (i / W) | 0;
+    const here = [...s.squads].filter(([, q]) => q[1] === x && q[2] === y);
+    const hq = hqIdx.indexOf(i);
+    if (here.length === 1) sel = { type: "squad", id: here[0][0] };
+    else if (hq >= 0) sel = { type: "hq", team: hq };
+    else sel = { type: "tile", idx: i };
+    draw(); renderPop();
+  }
+  board.addEventListener("click", (ev) => {
+    const i = cellAt(ev);
+    if (i === null) return;
+    const s = stateAt(frame);
+    // clicking near (not exactly on) a squad or HQ still selects it
+    let best = i;
+    if (![...s.squads.values()].some((q) => q[2] * W + q[1] === i) && !hqIdx.includes(i)) {
+      const x = i % W, y = (i / W) | 0;
+      for (const [, q] of s.squads) if (Math.max(Math.abs(q[1] - x), Math.abs(q[2] - y)) <= (cell < 12 ? 1 : 0)) { best = q[2] * W + q[1]; break; }
+      for (const h of hqIdx) if (Math.max(Math.abs(h % W - x), Math.abs(((h / W) | 0) - y)) <= 1) best = h;
+    }
+    selectAt(best);
   });
-  board.addEventListener("mouseleave", () => { $("hover").hidden = true; });
+  board.addEventListener("mousemove", (ev) => {
+    const i = cellAt(ev);
+    if (i === null) return;
+    const s = stateAt(frame), x = i % W, y = (i / W) | 0;
+    const here = [...s.squads.values()].filter((q) => q[1] === x && q[2] === y);
+    $("readout").innerHTML = `(${x}, ${y}) · ${tileText(s, i)}${rich[i] ? " · rich" : ""}${here.length ? " · " + here.map((q) => `<span class="t${"AB"[q[0]]}">${q[3]} soldiers</span>`).join(" vs ") : ""}`;
+  });
 
   let dragging = false;
   const chartSeek = (ev) => {
@@ -622,6 +850,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     else if (ev.key === "ArrowLeft") { ev.preventDefault(); setPlaying(false); seek(frame - 1); }
     else if (ev.key === "Home") { ev.preventDefault(); setPlaying(false); seek(0); }
     else if (ev.key === "End") { ev.preventDefault(); setPlaying(false); seek(frames.length - 1); }
+    else if (ev.key === "Escape") { sel = null; renderPop(); draw(); }
   });
 
   function loadText(text) {
@@ -639,7 +868,7 @@ tbody tr + tr td { border-top: 1px solid var(--grid); }
     const fr = new FileReader(); fr.onload = () => loadText(fr.result); fr.readAsText(file);
   });
 
-  window.addEventListener("resize", () => resize());
+  window.addEventListener("resize", () => { resize(); renderPop(); });
   const refreshTheme = () => { readColors(); draw(); };
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refreshTheme);
   new MutationObserver(refreshTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

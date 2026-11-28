@@ -356,3 +356,20 @@ def test_tiebreak_order():
     w.begin_turn()
     w.end_turn()
     assert w.winner == 1 and "second player" in w.reason  # everything equal
+
+
+def test_ruins_break_connection_but_count_as_a_gap():
+    w = make_world()
+    for x in (5, 6, 7):
+        w._set_owner(idx(w, x, 3), 1)
+    assert idx(w, 7, 3) in w.connected(0)
+    w._set_owner(idx(w, 5, 3), 0)
+    w.ruins[idx(w, 5, 3)] = C.RUIN_ROUNDS
+    assert idx(w, 6, 3) not in w.connected(0)                     # cut off from the HQ
+    assert "not territory connected" in w.why_not_spawn(w.hq[0], 6, 3, 1)
+    assert w.income(0) == w.tiles[0]                                # still produces income
+    # a ruin between A and B territory is enough separation
+    w._set_owner(idx(w, 9, 3), 2)
+    w.ruins[idx(w, 8, 3)] = C.RUIN_ROUNDS
+    s = put(w, 0, 7, 4, 3)
+    assert w.why_not_occupy(s, 1) is None                           # (8,3) ruin and (9,3) is 2 away

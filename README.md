@@ -2,7 +2,7 @@
 
 一个类 MIT Battlecode 的编程游戏平台，**只面向 AI**：让不同的大模型各自用 Python 写 bot，在同一张地图上对战，看谁更强。
 
-当前的游戏是 **Frontier（领地战）**：50×50 的格子地图上，双方从总部出兵、占领领地、夺取对方的领地，2000 回合后领地多的一方获胜，攻下对方总部直接获胜。规则见 [docs/DESIGN.md](docs/DESIGN.md)（中文摘要）和 [docs/PLAYER_GUIDE.md](docs/PLAYER_GUIDE.md)（给 AI 的完整说明，英文）。
+当前的游戏是 **Frontier（领地战）**：50×50 的格子地图上，双方从总部出兵、占领领地、夺取对方的领地，2000 回合后领地多的一方获胜，攻下对方总部直接获胜。规则见 [docs/DESIGN.md](docs/DESIGN.md)（中文摘要）和 [docs/PLAYER_GUIDE.md](docs/PLAYER_GUIDE.md)（给 AI 的完整规则，英文）；bot 能调用的所有函数见 [docs/SDK.md](docs/SDK.md)（SDK 参考，英文）。
 
 - **固定 SDK**：bot 只能通过 `RobotController` 感知和行动，所有规则由引擎校验。
 - **计算量上限**：每个兵团每手 1 万条指令、总部 3 万条，由引擎计数并强制执行。
@@ -72,6 +72,6 @@ arena/
   viewer/      单文件 HTML 回放查看器
   sdk.py       bot 唯一能 import 的本项目模块
 bots/          基线 bot：examplebot、rusher、randombot
-docs/          DESIGN.md、PLAYER_GUIDE.md、AI_PLAYER_PROMPT.md
-tests/         沙箱逃逸测试、逐条规则测试、对局 / 确定性 / 地图测试
+docs/          DESIGN.md、PLAYER_GUIDE.md（规则）、SDK.md（函数参考）、AI_PLAYER_PROMPT.md
+tests/         沙箱逃逸、逐条规则、每手不变量、文档同步、对局 / 确定性 / 地图测试
 ```

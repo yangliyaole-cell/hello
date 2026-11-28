@@ -311,11 +311,7 @@ class RobotController(metaclass=_Frozen):
     def get_owned_tiles(ctx, connected_only=False) -> list:
         """Locations of all your territory (or only the part connected to your HQ)."""
         w, t = ctx.world, ctx.agent.team
-        if connected_only:
-            cells = sorted(w.connected(t))
-        else:
-            code = t + 1
-            cells = [i for i in range(w.w * w.h) if w.owner[i] == code]
+        cells = sorted(w.connected(t) if connected_only else w.owned[t])
         _charge(len(cells) // 4)
         return [_loc(i % w.w, i // w.w) for i in cells]
 

@@ -129,6 +129,7 @@ class GameWorld:
         self.order: list[Agent] = []           # squads in creation order
         self.gold = [C.STARTING_GOLD, C.STARTING_GOLD]
         self.tiles = [0, 0]
+        self.owned = (set(), set())            # owned tile indices per team
         self.rich_tiles = [0, 0]
         self.soldiers = [0, 0]                 # in squads (garrisons not included)
         self.squad_count = [0, 0]
@@ -203,6 +204,10 @@ class GameWorld:
                 continue
             t = c - 1
             self.tiles[t] += delta
+            if delta > 0:
+                self.owned[t].add(idx)
+            else:
+                self.owned[t].discard(idx)
             if self.rich[idx]:
                 self.rich_tiles[t] += delta
             cover, vis = self.cover[t], self.visible[t]
@@ -335,7 +340,7 @@ class GameWorld:
     def _cancel_occupation(self, idx: int, why: str) -> None:
         o = self.occ.pop(idx)
         self.stats[o.team]["occupations_cancelled"] += 1
-        self.occ_ended.append([idx % self.w, idx // self.w, why])
+        self.occ_events.append(["end", idx % self.w, idx // self.w, why])
 
     # ------------------------------------------------------------------ rule checks (None = legal)
 
@@ -455,7 +460,7 @@ class GameWorld:
         o = Occupation(s.team, idx, total, occupation_rounds(total, ruined), ruined, self.turn)
         self.occ[idx] = o
         self.stats[s.team]["occupations_started"] += 1
-        self.occ_started.append([s.x, s.y, s.team, o.rounds, total])
+        self.occ_events.append(["start", s.x, s.y, s.team, o.rounds, total])
         return o
 
     def do_raze(self, s: Agent) -> None:
@@ -504,8 +509,7 @@ class GameWorld:
         self.changed: set = set()
         self.gone: list = []
         self.tile_changes: dict = {}
-        self.occ_started: list = []
-        self.occ_ended: list = []
+        self.occ_events: list = []        # ["start", x, y, team, rounds, total] / ["end", x, y, why], in order
         self.fights: list = []
         self.events: list = []
         self.f_ind: list = []
@@ -628,11 +632,11 @@ class GameWorld:
                 x, y = idx % self.w, idx // self.w
                 if self.enemy_adjacent(t, idx):
                     st["occupations_failed"] += 1
-                    self.occ_ended.append([x, y, "failed"])
+                    self.occ_events.append(["end", x, y, "failed"])
                 else:
                     st["tiles_repaired" if o.ruined else "tiles_claimed"] += 1
                     self._set_owner(idx, t + 1)
-                    self.occ_ended.append([x, y, "done"])
+                    self.occ_events.append(["end", x, y, "done"])
         inc, up = self.income(t), self.upkeep(t)
         self.gold[t] += inc - up
         st["income_total"] += inc
@@ -683,16 +687,14 @@ class GameWorld:
         w = self.w
         f: dict = {"team": self.active}
         if self.changed:
-            f["sq"] = [[s.id, s.team, s.x, s.y, s.n] for s in sorted((self.squads[i] for i in self.changed if i in self.squads),
+            f["sq"] = [[s.id, s.team, s.x, s.y, s.n, s.last_move.index if s.last_move else -1] for s in sorted((self.squads[i] for i in self.changed if i in self.squads),
                                                                    key=lambda s: s.id)]
         if self.gone:
             f["gone"] = self.gone
         if self.tile_changes:
             f["tiles"] = [[i % w, i // w, v] for i, v in self.tile_changes.items()]
-        if self.occ_started:
-            f["occ"] = self.occ_started
-        if self.occ_ended:
-            f["occ_end"] = self.occ_ended
+        if self.occ_events:
+            f["occ"] = self.occ_events
         if self.fights:
             f["fights"] = self.fights
         if self.events:
